@@ -1,9 +1,9 @@
 <?php
     /*
     Plugin Name: Seattle Makers Check-In Plugin
-    Plugin URI: https://seattlemakers.org/
+    Plugin URI: https://github.com/seattlemakers/check-in/
     Description: To display at front desk to allow people to check into the space
-    Version: 0.0.1
+    Version: 1.0
     Author: Adi
     Author URI: https://github.com/adkeswani/
      */
@@ -53,10 +53,11 @@ function check_in_home($content)
                 <br><br><br>
                 <h6>First time in the space?</h6>
                 <button onclick=\"window.open('/interest/','_blank')\">Visitor Registration</button>
-                <button onclick=\"window.open('/memberships/#options/','_blank')\">Membership Sign-Up</button>
+                <button onclick=\"window.open('/memberships/','_blank')\">Membership Sign-Up</button>
             </div>
             <div class = \"column\">
-                <h3>Check Out</h3>
+                <h3>Who's In The Space</h3><br>
+                Click on your name to check out.
                 <form action=\"/check-in/\" method=\"post\">";
 
     $check_ins = check_in_db_get_todays_check_ins();
@@ -230,6 +231,7 @@ function check_in_db_add_check_in($user_id)
 function check_in_db_get_check_ins_all()
 {
     global $wpdb;
+
     $sql = $wpdb->prepare("
         SELECT *
         FROM {$wpdb->base_prefix}sm_check_ins
@@ -285,6 +287,14 @@ function check_in_db_add_check_out($user_id)
 function check_in_filter($content) 
 {
     if (($_SERVER['REQUEST_URI'] != '/check-in/') and ($_SERVER['REQUEST_URI'] != '/check-in-stats/'))
+    {
+        return $content;
+    }
+
+    // Returns true if password hasn't been entered yet.
+    // On false we return the content, which includes the password entry box.
+    // Password uses a cookie so we will only need to enter it once.
+    if (post_password_required())
     {
         return $content;
     }
