@@ -8,6 +8,8 @@
     Author URI: https://github.com/adkeswani/
      */
 
+$vistor_registration_form_embed = "[pauf id=\"_pp_form_a068dd05a73ebcb4b7a8fa661006d004\"]";
+
 function check_in_home($content)
 {
     $content = "{$content}
@@ -46,19 +48,17 @@ function check_in_home($content)
             <div class = \"column\">
                 <h3>Check In</h3>
                 <form action=\"/check-in/\" method=\"post\">
-                <label for=\"check_in_searched_email\">Email: </label>
+                <label for=\"check_in_searched_email\">Email address you registered with: </label>
                 <input type=\"text\" id=\"check_in_searched_email\" name=\"check_in_searched_email\" oninput=\"check_in_searched_email_on_input()\">
                 <input type=\"submit\" id=\"check_in_submit\" value=\"Check in\" disabled=\"true\">
-                </form>
                 <br><br><br>
-                <h6>First time in the space?</h6>
-                <button onclick=\"window.open('/interest/','_blank')\">Visitor Registration</button>
+                <h6>Not already registered?</h6>
+                <input type=\"submit\" id=\"check_in_visitor_registration\" name=\"check_in_visitor_registration\" value=\"Visitor Registration\">
                 <button onclick=\"window.open('/memberships/','_blank')\">Membership Sign-Up</button>
             </div>
             <div class = \"column\">
-                <h3>Who's In The Space</h3><br>
-                Click on your name to check out.
-                <form action=\"/check-in/\" method=\"post\">";
+                <h3>Who's In The Space</h3>
+                Click on your name to check out.<br>";
 
     $check_ins = check_in_db_get_todays_check_ins();
     foreach($check_ins as $check_in)
@@ -70,6 +70,16 @@ function check_in_home($content)
         
     // TODO: Show events below form
 
+    return $content;
+}
+
+function check_in_visitor_registration($content)
+{
+    $content = "{$content}
+        <h1>Visitor Registration</h1><br>
+        <br><br><button onclick=\"window.open('/check-in/', '_self')\">Return to check-in page</button>
+        {$GLOBALS['vistor_registration_form_embed']}";
+    $content = check_in_add_redirect_to_home($content, 300);
     return $content;
 }
 
@@ -85,10 +95,11 @@ function check_in_success_user_found($content, $user)
 function check_in_failure_no_user_found($content, $user_email)
 {
     $content = check_in_add_title($content);
-    $content = "{$content}<br>The email address \"{$user_email}\" was not found. Please register as a visitor or sign up for a membership.<br><br>
-        <button onclick=\"window.open('/interest/','_blank')\">Visitor Registration</button>
-        <button onclick=\"window.open('/memberships/#options/','_blank')\">Membership Sign-Up</button>";
-    $content = check_in_add_redirect_to_home($content, 10);
+    $content = "{$content}<br>The email address \"{$user_email}\" was not found. Please register as a visitor below or:<br><br>
+        <button onclick=\"window.open('/memberships/', '_blank')\">Sign up as a member</button>
+        <button onclick=\"window.open('/check-in/', '_self')\">Return to check-in page</button><br><br>
+        {$GLOBALS['vistor_registration_form_embed']}";
+    $content = check_in_add_redirect_to_home($content, 300);
     return $content;
 }
 
@@ -111,7 +122,7 @@ function check_in_failure_already_checked_in($content, $user_email, $display_nam
 function check_in_check_out($content, $user_id, $display_name)
 {
     check_in_db_add_check_out($user_id);
-    $content = check_in_add_title($content);
+    $content = "{$content}<h1>Check Out</h1><br>";
     $content = "{$content}<br>Goodbye, {$display_name}!";
     $content = check_in_add_redirect_to_home($content, 1);
     return $content;
@@ -291,8 +302,8 @@ function check_in_filter($content)
         return $content;
     }
 
-    // Returns true if password hasn't been entered yet.
-    // On false we return the content, which includes the password entry box.
+    // Returns false if password hasn't been entered yet.
+    // On false we return the original content, which includes the password entry box.
     // Password uses a cookie so we will only need to enter it once.
     if (post_password_required())
     {
@@ -315,6 +326,11 @@ function check_in_filter($content)
         if (preg_match('/^check_out_([0-9]+)$/', $post_key, $matches))
         {
             return check_in_check_out($content, $matches[1], $post_value);
+        }
+
+        if ($post_key == 'check_in_visitor_registration')
+        {
+            return check_in_visitor_registration($content);
         }
     }
 
