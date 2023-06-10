@@ -56,6 +56,12 @@ function check_in_home($content)
                 padding: 5%;
                 border: solid;
             }
+
+            .check-ins-table {
+                padding: 5px;
+                border: none;
+                text-align: left;
+            }
         </style>
 
         <br>
@@ -73,15 +79,31 @@ function check_in_home($content)
             </div>
             <div class = \"column\">
                 <h3>Who's In The Space</h3>
-                Click on your name to check out.<br>";
+                Click on your name to check out.<br><br>
+                <table class=\"check-ins-table\"><tbody>";
 
     $check_ins = check_in_db_get_todays_check_ins();
+    $check_ins_counter = 0;
     foreach($check_ins as $check_in)
     {
-        $content = "{$content}<br><input type=\"submit\" id=\"check_out_{$check_in->user_id}\" name=\"check_out_{$check_in->user_id}\" value=\"{$check_in->display_name}\">";
+        // Show two buttons per line
+        if ($check_ins_counter % 2 == 0)
+        {
+            $content = "{$content}<tr class=\"check-ins-table\">";
+        }
+
+        $content = "{$content}<td class=\"check-ins-table\" align=\"left\"><input type=\"submit\" id=\"check_out_{$check_in->user_id}\" name=\"check_out_{$check_in->user_id}\" value=\"{$check_in->display_name}\"></td>";
+
+        // Show two buttons per line
+        if ($check_ins_counter % 2 == 1)
+        {
+            $contemt = "{$content}</tr>";
+        }
+
+        $check_ins_counter += 1;
     }
 
-    $content = "{$content}</form></div></div>";
+    $content = "{$content}</tbody></table></form></div></div>";
         
     // TODO: Show events below form
 
