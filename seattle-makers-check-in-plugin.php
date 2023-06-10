@@ -28,6 +28,21 @@ function check_in_home($content)
                     check_in_submit.disabled = false;
                 }
             }
+
+            // Automatically refresh at 1AM to clear out the previous day's check-ins.
+            // Experimental. This may not work if machine or tab goes to sleep.
+            var now = new Date();
+
+            // 1AM the next day
+            var refreshTime = new Date(
+                now.getFullYear(),
+                now.getMonth(),
+                now.getDate() + 1, 
+                1, 0, 0
+            );
+
+            var msTillRefresh = refreshTime.getTime() - now.getTime();
+            setTimeout(() => { document.location.reload(); }, msTillRefresh);
         </script>
 
         <style>
