@@ -8,7 +8,8 @@
     Author URI: https://github.com/adkeswani/
      */
 
-$vistor_registration_form_embed = "[pauf id=\"_pp_form_a068dd05a73ebcb4b7a8fa661006d004\"]";
+// This is a clone of the Interest + Waiver Form that redirects back to the check-in page when form is completed. Use _pp_form_6b326938daaffa3b443ad295f8168d61 for the dev site, _pp_form_fa63fcd59261ceaaa06157028432de5f for prod.
+$vistor_registration_form_embed = "[pauf id=\"_pp_form_fa63fcd59261ceaaa06157028432de5f\"]";
 
 function check_in_home($content)
 {
@@ -112,11 +113,11 @@ function check_in_home($content)
 
 function check_in_visitor_registration($content)
 {
+    $content = check_in_add_idle_redirect($content);
     $content = "{$content}
         <h1>Visitor Registration</h1><br>
         <br><br><button onclick=\"window.open('/check-in/', '_self')\">Return to check-in page</button>
         {$GLOBALS['vistor_registration_form_embed']}";
-    $content = check_in_add_redirect_to_home($content, 300);
     return $content;
 }
 
@@ -131,12 +132,12 @@ function check_in_success_user_found($content, $user)
 
 function check_in_failure_no_user_found($content, $user_email)
 {
+    $content = check_in_add_idle_redirect($content);
     $content = check_in_add_title($content);
     $content = "{$content}<br>The email address \"{$user_email}\" was not found. Please register as a visitor below or:<br><br>
         <button onclick=\"window.open('/memberships/', '_blank')\">Sign up as a member</button>
         <button onclick=\"window.open('/check-in/', '_self')\">Return to check-in page</button><br><br>
         {$GLOBALS['vistor_registration_form_embed']}";
-    $content = check_in_add_redirect_to_home($content, 300);
     return $content;
 }
 
@@ -223,6 +224,37 @@ function check_in_add_redirect_to_home($content, $interval_in_seconds)
 function check_in_add_title($content)
 {
     return "{$content}<h1>Check In</h1><br>";
+}
+
+function check_in_add_idle_redirect($content)
+{
+    // Copied from https://stackoverflow.com/questions/5631307/redirect-user-after-60-seconds-of-idling-inactivity
+    // Used on check-in page interest form to redirect to check-in home page if user abandons registration.
+    return "{$content}<script>
+        (function() 
+        {
+            const idleDurationInSeconds = 30;    // X number of seconds
+            const redirectUrl = '/check-in/';  // Redirect idle users to this URL
+            let idleTimeout; // Variable to hold the timeout, do not modify
+
+            const resetIdleTimeout = function() 
+            {
+                // Clears the existing timeout
+                if(idleTimeout) clearTimeout(idleTimeout);
+
+                // Set a new idle timeout to load the redirectUrl after idleDurationSecs
+                idleTimeout = setTimeout(() => location.href = redirectUrl, idleDurationInSeconds * 1000);
+            };
+
+            // Init on page load
+            resetIdleTimeout();
+
+            // Reset the idle timeout on any of the events listed below
+            ['click', 'touchstart', 'mousemove', 'keydown', 'wheel', 'DOMMouseScroll', 'mousewheel', 'mousedown', 'touchmove', 'MSPointerDown', 'MSPointerMove'].forEach(evt => 
+                document.addEventListener(evt, resetIdleTimeout, false)
+            );
+        })();
+    </script>";
 }
 
 // DB helpers
