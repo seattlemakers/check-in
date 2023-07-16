@@ -9,7 +9,7 @@
      */
 
 // This is a clone of the Interest + Waiver Form that redirects back to the check-in page when form is completed. Use _pp_form_6b326938daaffa3b443ad295f8168d61 for the dev site, _pp_form_fa63fcd59261ceaaa06157028432de5f for prod.
-$VISITOR_REGISTRATION_FORM_EMBED = '[pauf id=\"_pp_form_fa63fcd59261ceaaa06157028432de5f\']';
+$VISITOR_REGISTRATION_FORM_EMBED = '[pauf id="_pp_form_fa63fcd59261ceaaa06157028432de5f"]';
 
 $UNKNOWN_MEMBERSHIP_STATUS = 0;
 $ACTIVE_MEMBERSHIP_STATUS = 1;
@@ -17,10 +17,6 @@ $EXPIRED_MEMBERSHIP_STATUS = 2;
 $VISITOR_MEMBERSHIP_STATUS = 3;
 $VOLUNTEER_MEMBERSHIP_STATUS = 4;
 $PAUSED_MEMBERSHIP_STATUS = 5;
-
-$ACTIVE_ITEM_STATUS = 'active';
-$VOLUNTEER_ITEM_IDS = [23956];
-$PAUSED_ITEM_IDS = [73733];
 
 $ITEM_ID_KEY = '_pp_item_id';
 $ITEM_STATUS_KEY = '_pp_item_status';
@@ -102,7 +98,7 @@ function check_in_home($content)
     $content = $content . '<span style="color:white; background-color:' . get_color_for_membership_status($GLOBALS['ACTIVE_MEMBERSHIP_STATUS']) . '">Active</span>, ';
     $content = $content . '<span style="color:white; background-color:' . get_color_for_membership_status($GLOBALS['EXPIRED_MEMBERSHIP_STATUS']) . '">Expired or Paused</span>, ';
     $content = $content . '<span style="color:white; background-color:' . get_color_for_membership_status($GLOBALS['VISITOR_MEMBERSHIP_STATUS']) . '">Visitor or Guest</span>, ';
-    $content = $content . '<span style="color:white; background-color:' . get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . '">Volunteer</span>';
+    $content = $content . '<span style="color:white; background-color:' . get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . '">Maketeer</span>';
 
     $content = $content . '<br><br>Click on your name to check out.<br><br><table class="check-ins-table"><tbody>';
     $check_ins = check_in_db_get_todays_check_ins();
@@ -333,18 +329,18 @@ function get_membership_status_from_payment_plans($payment_plans)
         // Look through all payment plans for active ones
         foreach($payment_plans as $plan)
         {
-            if ($plan[$GLOBALS['ITEM_STATUS_KEY']] == $GLOBALS['ACTIVE_ITEM_STATUS'])
+            if ($plan[$GLOBALS['ITEM_STATUS_KEY']] == 'active')
             {
                 $membership_status = $GLOBALS['ACTIVE_MEMBERSHIP_STATUS'];
 
                 // If the active payment plan is also a volunteer or paused plan, we know the status can stop iterating.
                 // Otherwise we must keep iterating in case there is an active volunteer or paused plan.
-                if (array_key_exists($plan[$GLOBALS['ITEM_ID_KEY']], $GLOBALS['VOLUNTEER_ITEM_IDS']))
+                if ($plan[$GLOBALS['ITEM_ID_KEY']] == 23956)
                 {
                     $membership_status = $GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS'];
                     break;
                 }
-                elseif (array_key_exists($plan[$GLOBALS['ITEM_ID_KEY']], $GLOBALS['PAUSED_ITEM_IDS']))
+                elseif ($plan[$GLOBALS['ITEM_ID_KEY']] == 73733)
                 {
                     $membership_status = $GLOBALS['PAUSED_MEMBERSHIP_STATUS'];
                     break;
