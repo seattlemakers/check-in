@@ -128,7 +128,8 @@ function check_in_home($content)
         }
         else
         {
-            // For unknown or invalid status, just pretend they are active. Useful on the day we transition to using these colors.
+            // For unknown or invalid status, just pretend they are active. 
+            // When we transition to using these colors, old check-ins will be set to unknown status.
             $check_in_button_style = "{$check_in_button_style}13723C"; // Dark green
         }
 
@@ -420,12 +421,22 @@ function check_in_db_add_check_in($user_id, $membership_status)
 function check_in_db_get_check_ins_all()
 {
     $limit = 1000;
-    if (isset($_GET['num_check_ins'])) 
+    if (isset($_GET['limit'])) 
     {
-        $limit = intval($_GET['num_check_ins']);
+        $limit = intval($_GET['limit']);
         if ($limit <= 0)
         {
             $limit = 1000;
+        }
+    }
+
+    $offset = 0;
+    if (isset($_GET['offset'])) 
+    {
+        $offset = intval($_GET['offset']);
+        if ($offset < 0)
+        {
+            $offset = 0;
         }
     }
 
@@ -434,7 +445,7 @@ function check_in_db_get_check_ins_all()
         SELECT *
         FROM {$wpdb->base_prefix}sm_check_ins
         ORDER BY {$wpdb->base_prefix}sm_check_ins.id DESC
-        LIMIT {$limit};");
+        LIMIT {$limit} OFFSET {$offset};");
 
     // Old query with user details included
     /*
@@ -521,17 +532,18 @@ function check_in_db_get_user_payment_plans($user_id)
 
 function check_in_filter($content) 
 {
+    $url = strtok($_SERVER['REQUEST_URI'], '?');
+    if (($url != '/check-in/') and ($url != '/check-in-stats/'))
+    {
+        return $content;
+    }
+
+    // Ensure database schema is up-to-date
     $db_version = get_option($GLOBALS['SM_CHECK_IN_PLUGIN_DB_VERSION_OPTION_NAME']);
     if ($dbVersion != $GLOBALS['SM_CHECK_IN_PLUGIN_DB_VERSION'])
     {
         check_in_db_create_or_update_table();
         update_option($GLOBALS['SM_CHECK_IN_PLUGIN_DB_VERSION_OPTION_NAME'], $GLOBALS['SM_CHECK_IN_PLUGIN_DB_VERSION']);
-    }
-
-    $url = strtok($_SERVER['REQUEST_URI'], '?');
-    if (($url != '/check-in/') and ($url != '/check-in-stats/'))
-    {
-        return $content;
     }
 
     // Returns false if password hasn't been entered yet.
