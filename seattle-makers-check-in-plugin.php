@@ -3,7 +3,7 @@
     Plugin Name: Seattle Makers Check-In Plugin
     Plugin URI: https://github.com/seattlemakers/check-in/
     Description: To display at front desk to allow people to check into the space
-    Version: 1.0
+    Version: 2.0
     Author: Adi
     Author URI: https://github.com/adkeswani/
      */
@@ -16,9 +16,11 @@ $ACTIVE_MEMBERSHIP_STATUS = 1;
 $EXPIRED_MEMBERSHIP_STATUS = 2;
 $VISITOR_MEMBERSHIP_STATUS = 3;
 $VOLUNTEER_MEMBERSHIP_STATUS = 4;
+$PAUSED_MEMBERSHIP_STATUS = 5;
 
 $ACTIVE_ITEM_STATUS = 'active';
-$VOLUNTEER_ITEM_IDS = [1234, 5678, 91011];
+$VOLUNTEER_ITEM_IDS = [23956];
+$PAUSED_ITEM_IDS = [73733];
 
 $ITEM_ID_KEY = '_pp_item_id';
 $ITEM_STATUS_KEY = '_pp_item_status';
@@ -95,9 +97,14 @@ function check_in_home($content)
             </div>
             <div class = \"column\">
                 <h3>Who's In The Space</h3>
-                Click on your name to check out.<br><br>
-                <table class=\"check-ins-table\"><tbody>";
+                Key: ";
 
+    $content = $content . '<span style="color:white; background-color:' . get_color_for_membership_status($GLOBALS['ACTIVE_MEMBERSHIP_STATUS']) . '">Active</span>, ';
+    $content = $content . '<span style="color:white; background-color:' . get_color_for_membership_status($GLOBALS['EXPIRED_MEMBERSHIP_STATUS']) . '">Expired or Paused</span>, ';
+    $content = $content . '<span style="color:white; background-color:' . get_color_for_membership_status($GLOBALS['VISITOR_MEMBERSHIP_STATUS']) . '">Visitor or Guest</span>, ';
+    $content = $content . '<span style="color:white; background-color:' . get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . '">Volunteer</span>';
+
+    $content = $content . '<br><br>Click on your name to check out.<br><br><table class="check-ins-table"><tbody>';
     $check_ins = check_in_db_get_todays_check_ins();
     $check_ins_counter = 0;
     foreach($check_ins as $check_in)
@@ -109,29 +116,7 @@ function check_in_home($content)
         }
 
         // Had to set the button style instead of using CSS class because it was being overridden by Wordpress theme
-        $check_in_button_style = 'background-color: #';
-        if ($check_in->membership_status == $GLOBALS['ACTIVE_MEMBERSHIP_STATUS'])
-        {
-            $check_in_button_style = "{$check_in_button_style}13723C"; // Dark green
-        }
-        elseif ($check_in->membership_status == $GLOBALS['EXPIRED_MEMBERSHIP_STATUS'])
-        {
-            $check_in_button_style = "{$check_in_button_style}FC7272"; // Pale red
-        }
-        elseif ($check_in->membership_status == $GLOBALS['VISITOR_MEMBERSHIP_STATUS'])
-        {
-            $check_in_button_style = "{$check_in_button_style}AD7CFC"; // Lavender
-}
-        elseif ($check_in->membership_status == $GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS'])
-        {
-            $check_in_button_style = "{$check_in_button_style}ABF7EB"; // Light turqouise
-        }
-        else
-        {
-            // For unknown or invalid status, just pretend they are active. 
-            // When we transition to using these colors, old check-ins will be set to unknown status.
-            $check_in_button_style = "{$check_in_button_style}13723C"; // Dark green
-        }
+        $check_in_button_style = 'background-color:' . get_color_for_membership_status($check_in->membership_status);
 
         $content = "{$content}<td class=\"check-ins-table\" align=\"left\"><input style=\"{$check_in_button_style}\" type=\"submit\" id=\"check_out_{$check_in->user_id}\" name=\"check_out_{$check_in->user_id}\" value=\"{$check_in->display_name}\"></td>";
 
@@ -175,6 +160,11 @@ function check_in_success_user_found($content, $user)
     if ($membership_status == $GLOBALS['EXPIRED_MEMBERSHIP_STATUS'])
     {
         $content = "{$content}<br><div style=\"color:red; font-weight:bold;\">Your membership is expired. Please ensure that your payment details are correct and see the front desk.</div>";
+        $redirect_time = 5;
+    }
+    elseif ($membership_status == $GLOBALS['PAUSED_MEMBERSHIP_STATUS'])
+    {
+        $content = "{$content}<br><div style=\"color:red; font-weight:bold;\">Your membership is paused. Please see the front desk to resume it.</div>";
         $redirect_time = 5;
     }
     elseif ($membership_status == $GLOBALS['VISITOR_MEMBERSHIP_STATUS'])
@@ -347,11 +337,16 @@ function get_membership_status_from_payment_plans($payment_plans)
             {
                 $membership_status = $GLOBALS['ACTIVE_MEMBERSHIP_STATUS'];
 
-                // If the active payment plan is also a volunteer plan, the member is a volunteer and we can stop iterating.
-                // Otherwise we must keep iterating in case there is an active volunteer plan.
+                // If the active payment plan is also a volunteer or paused plan, we know the status can stop iterating.
+                // Otherwise we must keep iterating in case there is an active volunteer or paused plan.
                 if (array_key_exists($plan[$GLOBALS['ITEM_ID_KEY']], $GLOBALS['VOLUNTEER_ITEM_IDS']))
                 {
                     $membership_status = $GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS'];
+                    break;
+                }
+                elseif (array_key_exists($plan[$GLOBALS['ITEM_ID_KEY']], $GLOBALS['PAUSED_ITEM_IDS']))
+                {
+                    $membership_status = $GLOBALS['PAUSED_MEMBERSHIP_STATUS'];
                     break;
                 }
             }
@@ -365,6 +360,27 @@ function get_membership_status_from_payment_plans($payment_plans)
     }
 
     return $membership_status;
+}
+
+function get_color_for_membership_status($membership_status)
+{
+    switch ($membership_status)
+    {
+    case $GLOBALS['ACTIVE_MEMBERSHIP_STATUS']:
+        return "#13723C"; // Dark green
+    case $GLOBALS['EXPIRED_MEMBERSHIP_STATUS']:
+        return "#FC7272"; // Pale red
+    case $GLOBALS['VISITOR_MEMBERSHIP_STATUS']:
+        return "#AD7CFC"; // Lavender
+    case $GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']:
+        return "#2DBD45"; // Bright green
+    case $GLOBALS['PAUSED_MEMBERSHIP_STATUS']:
+        return "#FC7272"; // Pale red
+    default:
+        // For unknown or invalid status, just pretend they are active. 
+        // When we transition to using these colors, old check-ins will be set to unknown status.
+        return "#13723C"; // Dark green
+    }
 }
 
 // DB helpers
