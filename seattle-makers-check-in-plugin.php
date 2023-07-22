@@ -92,41 +92,28 @@ function check_in_home($content)
                 <button onclick=\"window.open('/memberships/','_blank')\">Membership Sign-Up</button>
             </div>
             <div class = \"column\">
-                <h3>Who's In The Space</h3>
-                Key: ";
+                <h3>Who's In The Space</h3>";
 
+    $check_ins = check_in_db_get_todays_check_ins();
+    $content = $content . 'Click on your name to check out.<br><br>';
+
+    // Add Maketeers table
+    $content = $content . '<h6>Maketeers:</h6>';
+    $content = add_check_ins_table($content, $check_ins, true);
+
+    // Add remaining members table
+    $content = $content . '<h6>Members:</h6>';
+    $content = add_check_ins_table($content, $check_ins, false);
+
+    // Add key
+    $content = $content . '<h6>Key:</h6>';
+    $content = $content . '<span style="color:white; background-color:' . get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . '">Maketeer</span>, ';
     $content = $content . '<span style="color:white; background-color:' . get_color_for_membership_status($GLOBALS['ACTIVE_MEMBERSHIP_STATUS']) . '">Active</span>, ';
     $content = $content . '<span style="color:white; background-color:' . get_color_for_membership_status($GLOBALS['EXPIRED_MEMBERSHIP_STATUS']) . '">Expired or Paused</span>, ';
-    $content = $content . '<span style="color:white; background-color:' . get_color_for_membership_status($GLOBALS['VISITOR_MEMBERSHIP_STATUS']) . '">Visitor or Guest</span>, ';
-    $content = $content . '<span style="color:white; background-color:' . get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . '">Maketeer</span>';
+    $content = $content . '<span style="color:white; background-color:' . get_color_for_membership_status($GLOBALS['VISITOR_MEMBERSHIP_STATUS']) . '">Visitor or Guest</span>';
 
-    $content = $content . '<br><br>Click on your name to check out.<br><br><table class="check-ins-table"><tbody>';
-    $check_ins = check_in_db_get_todays_check_ins();
-    $check_ins_counter = 0;
-    foreach($check_ins as $check_in)
-    {
-        // Show two buttons per line
-        if ($check_ins_counter % 2 == 0)
-        {
-            $content = "{$content}<tr class=\"check-ins-table\">";
-        }
+    $content = $content . '</form></div></div>';
 
-        // Had to set the button style instead of using CSS class because it was being overridden by Wordpress theme
-        $check_in_button_style = 'background-color:' . get_color_for_membership_status($check_in->membership_status);
-
-        $content = "{$content}<td class=\"check-ins-table\" align=\"left\"><input style=\"{$check_in_button_style}\" type=\"submit\" id=\"check_out_{$check_in->user_id}\" name=\"check_out_{$check_in->user_id}\" value=\"{$check_in->display_name}\"></td>";
-
-        // Show two buttons per line
-        if ($check_ins_counter % 2 == 1)
-        {
-            $content = "{$content}</tr>";
-        }
-
-        $check_ins_counter += 1;
-    }
-
-    $content = "{$content}</tbody></table></form></div></div>";
-        
     // TODO: Show events below form
 
     return $content;
@@ -377,6 +364,42 @@ function get_color_for_membership_status($membership_status)
         // When we transition to using these colors, old check-ins will be set to unknown status.
         return "#13723C"; // Dark green
     }
+}
+
+function add_check_ins_table($content, $check_ins, $volunteers_only)
+{
+    $content = $content . '<table class="check-ins-table"><tbody>';
+
+    $check_ins_counter = 0;
+    foreach($check_ins as $check_in)
+    {
+        if ($volunteers_only != ($check_in->membership_status == $GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']))
+        {
+            continue;
+        }
+
+        // Show two buttons per line
+        if ($check_ins_counter % 2 == 0)
+        {
+            $content = "{$content}<tr class=\"check-ins-table\">";
+        }
+
+       // Had to set the button style instead of using CSS class because it was being overridden by Wordpress theme
+        $check_in_button_style = 'background-color:' . get_color_for_membership_status($check_in->membership_status);
+
+        $content = "{$content}<td class=\"check-ins-table\" align=\"left\"><input style=\"{$check_in_button_style}\" type=\"submit\" id=\"check_out_{$check_in->user_id}\" name=\"check_out_{$check_in->user_id}\" value=\"{$check_in->display_name}\"></td>";
+
+        // Show two buttons per line
+        if ($check_ins_counter % 2 == 1)
+        {
+            $content = "{$content}</tr>";
+        }
+
+        $check_ins_counter += 1;
+    }
+
+    $content = $content . '</tbody></table>';
+    return $content;
 }
 
 // DB helpers
