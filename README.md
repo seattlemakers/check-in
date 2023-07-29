@@ -17,3 +17,8 @@
 1. Sign in with administrator Wordpress account.
 2. Go to Plugins > Installed Plugins > Seattle Makers Check In Plugin > Deactivate.
 3. Go to Plugins > Installed Plugins > Seattle Makers Check In Plugin > Delete, and confirm. This will also delete the database table of check-ins.
+
+**Stats instructions:**
+1. Sign into https://seattlemakers.org with AVStudios or other admin account.
+2. Go to https://seattlemakers.org/check-in-stats. By default this shows the 1000 most recent check-ins.
+3. Go to https://seattlemakers.org/check-in-stats?offset=100&limit=200 to skip the first 100 most recent check-ins and then show the next 200.
