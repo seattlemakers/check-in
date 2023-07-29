@@ -3,13 +3,26 @@
     Plugin Name: Seattle Makers Check-In Plugin
     Plugin URI: https://github.com/seattlemakers/check-in/
     Description: To display at front desk to allow people to check into the space
-    Version: 1.0
+    Version: 2.0
     Author: Adi
     Author URI: https://github.com/adkeswani/
      */
 
 // This is a clone of the Interest + Waiver Form that redirects back to the check-in page when form is completed. Use _pp_form_6b326938daaffa3b443ad295f8168d61 for the dev site, _pp_form_fa63fcd59261ceaaa06157028432de5f for prod.
-$vistor_registration_form_embed = "[pauf id=\"_pp_form_fa63fcd59261ceaaa06157028432de5f\"]";
+$VISITOR_REGISTRATION_FORM_EMBED = '[pauf id="_pp_form_fa63fcd59261ceaaa06157028432de5f"]';
+
+$UNKNOWN_MEMBERSHIP_STATUS = 0;
+$ACTIVE_MEMBERSHIP_STATUS = 1;
+$EXPIRED_MEMBERSHIP_STATUS = 2;
+$VISITOR_MEMBERSHIP_STATUS = 3;
+$VOLUNTEER_MEMBERSHIP_STATUS = 4;
+$PAUSED_MEMBERSHIP_STATUS = 5;
+
+$ITEM_ID_KEY = '_pp_item_id';
+$ITEM_STATUS_KEY = '_pp_item_status';
+
+$SM_CHECK_IN_PLUGIN_DB_VERSION = 2;
+$SM_CHECK_IN_PLUGIN_DB_VERSION_OPTION_NAME = 'sm_check_in_plugin_db_version';
 
 function check_in_home($content)
 {
@@ -79,33 +92,28 @@ function check_in_home($content)
                 <button onclick=\"window.open('/memberships/','_blank')\">Membership Sign-Up</button>
             </div>
             <div class = \"column\">
-                <h3>Who's In The Space</h3>
-                Click on your name to check out.<br><br>
-                <table class=\"check-ins-table\"><tbody>";
+                <h3>Who's In The Space</h3>";
 
     $check_ins = check_in_db_get_todays_check_ins();
-    $check_ins_counter = 0;
-    foreach($check_ins as $check_in)
-    {
-        // Show two buttons per line
-        if ($check_ins_counter % 2 == 0)
-        {
-            $content = "{$content}<tr class=\"check-ins-table\">";
-        }
+    $content = $content . 'Click on your name to check out.<br><br>';
 
-        $content = "{$content}<td class=\"check-ins-table\" align=\"left\"><input type=\"submit\" id=\"check_out_{$check_in->user_id}\" name=\"check_out_{$check_in->user_id}\" value=\"{$check_in->display_name}\"></td>";
+    // Add Maketeers table
+    $content = $content . '<h6>Maketeers:</h6>';
+    $content = add_check_ins_table($content, $check_ins, true);
 
-        // Show two buttons per line
-        if ($check_ins_counter % 2 == 1)
-        {
-            $contemt = "{$content}</tr>";
-        }
+    // Add remaining members table
+    $content = $content . '<h6>Members:</h6>';
+    $content = add_check_ins_table($content, $check_ins, false);
 
-        $check_ins_counter += 1;
-    }
+    // Add key
+    $content = $content . '<h6>Key:</h6>';
+    $content = $content . '<span style="color:white; background-color:' . get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . '">Maketeer</span>, ';
+    $content = $content . '<span style="color:white; background-color:' . get_color_for_membership_status($GLOBALS['ACTIVE_MEMBERSHIP_STATUS']) . '">Active</span>, ';
+    $content = $content . '<span style="color:white; background-color:' . get_color_for_membership_status($GLOBALS['EXPIRED_MEMBERSHIP_STATUS']) . '">Expired or Paused</span>, ';
+    $content = $content . '<span style="color:white; background-color:' . get_color_for_membership_status($GLOBALS['VISITOR_MEMBERSHIP_STATUS']) . '">Visitor or Guest</span>';
 
-    $content = "{$content}</tbody></table></form></div></div>";
-        
+    $content = $content . '</form></div></div>';
+
     // TODO: Show events below form
 
     return $content;
@@ -117,16 +125,38 @@ function check_in_visitor_registration($content)
     $content = "{$content}
         <h1>Visitor Registration</h1><br>
         <br><br><button onclick=\"window.open('/check-in/', '_self')\">Return to check-in page</button>
-        {$GLOBALS['vistor_registration_form_embed']}";
+        {$GLOBALS['VISITOR_REGISTRATION_FORM_EMBED']}";
     return $content;
 }
 
 function check_in_success_user_found($content, $user)
 {
+    $payment_plans = check_in_db_get_user_payment_plans($user->ID);
+    $membership_status = get_membership_status_from_payment_plans($payment_plans);
+
+    check_in_db_add_check_in($user->ID, $membership_status);
+
     $content = check_in_add_title($content);
-    check_in_db_add_check_in($user->ID);
     $content = "{$content}<br>Welcome, {$user->display_name}!";
-    $content = check_in_add_redirect_to_home($content, 1);
+    $redirect_time = 1;
+
+    if ($membership_status == $GLOBALS['EXPIRED_MEMBERSHIP_STATUS'])
+    {
+        $content = "{$content}<br><div style=\"color:red; font-weight:bold;\">Your membership is expired. Please ensure that your payment details are correct and see the front desk.</div>";
+        $redirect_time = 5;
+    }
+    elseif ($membership_status == $GLOBALS['PAUSED_MEMBERSHIP_STATUS'])
+    {
+        $content = "{$content}<br><div style=\"color:red; font-weight:bold;\">Your membership is paused. Please see the front desk to resume it.</div>";
+        $redirect_time = 5;
+    }
+    elseif ($membership_status == $GLOBALS['VISITOR_MEMBERSHIP_STATUS'])
+    {
+        $content = "{$content}<br><div style=\"font-weight:bold;\">Please note that membership or a guest pass is required for tool use.</div>";
+        $redirect_time = 3;
+    }
+
+    $content = check_in_add_redirect_to_home($content, $redirect_time);
     return $content;
 }
 
@@ -137,7 +167,7 @@ function check_in_failure_no_user_found($content, $user_email)
     $content = "{$content}<br>The email address \"{$user_email}\" was not found. Please register as a visitor below or:<br><br>
         <button onclick=\"window.open('/memberships/', '_blank')\">Sign up as a member</button>
         <button onclick=\"window.open('/check-in/', '_self')\">Return to check-in page</button><br><br>
-        {$GLOBALS['vistor_registration_form_embed']}";
+        {$GLOBALS['VISITOR_REGISTRATION_FORM_EMBED']}";
     return $content;
 }
 
@@ -160,6 +190,7 @@ function check_in_failure_already_checked_in($content, $user_email, $display_nam
 function check_in_check_out($content, $user_id, $display_name)
 {
     check_in_db_add_check_out($user_id);
+
     $content = "{$content}<h1>Check Out</h1><br>";
     $content = "{$content}<br>Goodbye, {$display_name}!";
     $content = check_in_add_redirect_to_home($content, 1);
@@ -171,19 +202,9 @@ function check_in_handle_search($content, $user_email)
     $users = check_in_db_find_users_by_email($user_email);
     $usersCount = count($users);
 
-    if ($usersCount == 1)
+    if ($usersCount == 0)
     {
-        // Prevent multiple check-ins by the same user
-        $check_ins = check_in_db_get_todays_check_ins();
-        foreach($check_ins as $check_in)
-        {
-            if ($check_in->user_id == $users[0]->ID)
-            {
-                return check_in_failure_already_checked_in($content, $user_email, $users[0]->display_name);
-            }
-        }
-
-        return check_in_success_user_found($content, $users[0]);
+        return check_in_failure_no_user_found($content, $user_email);
     }
 
     if ($usersCount > 1)
@@ -191,20 +212,44 @@ function check_in_handle_search($content, $user_email)
         return check_in_failure_multiple_users_found($content, $user_email);
     }
 
-    return check_in_failure_no_user_found($content, $user_email);
+    // Prevent multiple check-ins by the same user
+    $check_ins = check_in_db_get_todays_check_ins();
+    foreach($check_ins as $check_in)
+    {
+        if ($check_in->user_id == $users[0]->ID)
+        {
+            return check_in_failure_already_checked_in($content, $user_email, $users[0]->display_name);
+        }
+    }
+
+    return check_in_success_user_found($content, $users[0]);
 }
 
 function check_in_stats($content)
 {
     $check_ins = check_in_db_get_check_ins_all();
+    $printed_fields = false;
     foreach($check_ins as $check_in)
     {
-        foreach($check_in as $check_in_field => $check_in_value)
+        if (!$printed_fields)
         {
-            $content = "{$content}    {$check_in_field}:{$check_in_value}";
+            foreach($check_in as $check_in_field => $check_in_value)
+            {
+                $content = "{$content}{$check_in_field},";
+            }
+
+            $content = rtrim($content, ',');
+            $content = "{$content}<br>\n";
+            $printed_fields = true;
         }
 
-        $content = "{$content}<br>";
+        foreach($check_in as $check_in_field => $check_in_value)
+        {
+            $content = "{$content}{$check_in_value},";
+        }
+
+        $content = rtrim($content, ',');
+        $content = "{$content}<br>\n";
     }
 
     return $content;
@@ -257,20 +302,121 @@ function check_in_add_idle_redirect($content)
     </script>";
 }
 
+function get_membership_status_from_payment_plans($payment_plans)
+{
+    $membership_status = $GLOBALS['UNKNOWN_MEMBERSHIP_STATUS'];
+
+    // If no payment plans, they're a guest or visitor
+    if (count($payment_plans) == 0)
+    {
+        $membership_status = $GLOBALS['VISITOR_MEMBERSHIP_STATUS'];
+    }
+    else
+    {
+        // Look through all payment plans for active ones
+        foreach($payment_plans as $plan)
+        {
+            if ($plan[$GLOBALS['ITEM_STATUS_KEY']] == 'active')
+            {
+                $membership_status = $GLOBALS['ACTIVE_MEMBERSHIP_STATUS'];
+
+                // If the active payment plan is also a volunteer or paused plan, we know the status can stop iterating.
+                // Otherwise we must keep iterating in case there is an active volunteer or paused plan.
+                if ($plan[$GLOBALS['ITEM_ID_KEY']] == 23956)
+                {
+                    $membership_status = $GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS'];
+                    break;
+                }
+                elseif ($plan[$GLOBALS['ITEM_ID_KEY']] == 73733)
+                {
+                    $membership_status = $GLOBALS['PAUSED_MEMBERSHIP_STATUS'];
+                    break;
+                }
+            }
+        }
+
+        // No active payment plan was found. Membership has expired.
+        if ($membership_status == $GLOBALS['UNKNOWN_MEMBERSHIP_STATUS'])
+        {
+            $membership_status = $GLOBALS['EXPIRED_MEMBERSHIP_STATUS'];
+        }
+    }
+
+    return $membership_status;
+}
+
+function get_color_for_membership_status($membership_status)
+{
+    switch ($membership_status)
+    {
+    case $GLOBALS['ACTIVE_MEMBERSHIP_STATUS']:
+        return "#13723C"; // Dark green
+    case $GLOBALS['EXPIRED_MEMBERSHIP_STATUS']:
+        return "#FC7272"; // Pale red
+    case $GLOBALS['VISITOR_MEMBERSHIP_STATUS']:
+        return "#AD7CFC"; // Lavender
+    case $GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']:
+        return "#2DBD45"; // Bright green
+    case $GLOBALS['PAUSED_MEMBERSHIP_STATUS']:
+        return "#FC7272"; // Pale red
+    default:
+        // For unknown or invalid status, just pretend they are active. 
+        // When we transition to using these colors, old check-ins will be set to unknown status.
+        return "#13723C"; // Dark green
+    }
+}
+
+function add_check_ins_table($content, $check_ins, $volunteers_only)
+{
+    $content = $content . '<table class="check-ins-table"><tbody>';
+
+    $check_ins_counter = 0;
+    foreach($check_ins as $check_in)
+    {
+        if ($volunteers_only != ($check_in->membership_status == $GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']))
+        {
+            continue;
+        }
+
+        // Show two buttons per line
+        if ($check_ins_counter % 2 == 0)
+        {
+            $content = "{$content}<tr class=\"check-ins-table\">";
+        }
+
+       // Had to set the button style instead of using CSS class because it was being overridden by Wordpress theme
+        $check_in_button_style = 'background-color:' . get_color_for_membership_status($check_in->membership_status);
+
+        $content = "{$content}<td class=\"check-ins-table\" align=\"left\"><input style=\"{$check_in_button_style}\" type=\"submit\" id=\"check_out_{$check_in->user_id}\" name=\"check_out_{$check_in->user_id}\" value=\"{$check_in->display_name}\"></td>";
+
+        // Show two buttons per line
+        if ($check_ins_counter % 2 == 1)
+        {
+            $content = "{$content}</tr>";
+        }
+
+        $check_ins_counter += 1;
+    }
+
+    $content = $content . '</tbody></table>';
+    return $content;
+}
+
 // DB helpers
 
-function check_in_db_create_table()
+function check_in_db_create_or_update_table()
 {
     global $wpdb;
     $charset_collate = $wpdb->get_charset_collate();
 
     // Casing and double-space below are intentional for dbDelta to work
     $sql = "CREATE TABLE {$wpdb->base_prefix}sm_check_ins (
-       id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-       user_id bigint(20) unsigned NOT NULL,
-       check_in_time datetime NOT NULL,
-       check_out_time datetime,
-       PRIMARY KEY  (id)) {$charset_collate};";
+        id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+        user_id bigint(20) unsigned NOT NULL,
+        check_in_time datetime NOT NULL,
+        check_out_time datetime,
+        membership_status tinyint unsigned NOT NULL,
+        PRIMARY KEY  (id)) {$charset_collate};";
 
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
     dbDelta($sql);
@@ -292,17 +438,16 @@ function check_in_db_find_users_by_email($user_email)
         SELECT ID, display_name, user_email
         FROM {$wpdb->base_prefix}users
         WHERE user_email = \"{$user_email}\"");
-
     $results = $wpdb->get_results($sql);
     return $results;
 }
 
-function check_in_db_add_check_in($user_id)
+function check_in_db_add_check_in($user_id, $membership_status)
 {
     global $wpdb;
     $sql = $wpdb->prepare("
-        INSERT INTO {$wpdb->base_prefix}sm_check_ins (user_id, check_in_time)
-        VALUES ({$user_id}, UTC_TIMESTAMP());");
+        INSERT INTO {$wpdb->base_prefix}sm_check_ins (user_id, check_in_time, membership_status)
+        VALUES ({$user_id}, UTC_TIMESTAMP(), {$membership_status});");
 
     $results = $wpdb->get_results($sql);
     return $results;
@@ -310,15 +455,43 @@ function check_in_db_add_check_in($user_id)
 
 function check_in_db_get_check_ins_all()
 {
-    global $wpdb;
+    $limit = 1000;
+    if (isset($_GET['limit'])) 
+    {
+        $limit = intval($_GET['limit']);
+        if ($limit <= 0)
+        {
+            $limit = 1000;
+        }
+    }
 
+    $offset = 0;
+    if (isset($_GET['offset'])) 
+    {
+        $offset = intval($_GET['offset']);
+        if ($offset < 0)
+        {
+            $offset = 0;
+        }
+    }
+
+    global $wpdb;
+    $sql = $wpdb->prepare("
+        SELECT *
+        FROM {$wpdb->base_prefix}sm_check_ins
+        ORDER BY {$wpdb->base_prefix}sm_check_ins.id DESC
+        LIMIT {$limit} OFFSET {$offset};");
+
+    // Old query with user details included
+    /*
     $sql = $wpdb->prepare("
         SELECT *
         FROM {$wpdb->base_prefix}sm_check_ins
         INNER JOIN {$wpdb->base_prefix}users 
         ON {$wpdb->base_prefix}sm_check_ins.user_id = {$wpdb->base_prefix}users.ID
         ORDER BY {$wpdb->base_prefix}sm_check_ins.id DESC
-        LIMIT 1000;");
+        LIMIT {$limit};");
+     */
 
     $results = $wpdb->get_results($sql);
     return $results;
@@ -334,7 +507,7 @@ function check_in_db_get_todays_check_ins()
     // Get all users after midnight today. Double percentage signs escapes percentage signs for the prepare call.
     global $wpdb;
     $sql = $wpdb->prepare("
-        SELECT {$wpdb->base_prefix}sm_check_ins.user_id, {$wpdb->base_prefix}users.display_name
+        SELECT {$wpdb->base_prefix}sm_check_ins.user_id, {$wpdb->base_prefix}users.display_name, {$wpdb->base_prefix}sm_check_ins.membership_status
         FROM {$wpdb->base_prefix}sm_check_ins
         INNER JOIN {$wpdb->base_prefix}users 
         ON {$wpdb->base_prefix}sm_check_ins.user_id = {$wpdb->base_prefix}users.ID
@@ -362,13 +535,50 @@ function check_in_db_add_check_out($user_id)
     return $results;
 }
 
+function check_in_db_get_user_payment_plans($user_id)
+{
+    global $wpdb;
+    $sql = $wpdb->prepare("
+        SELECT {$wpdb->base_prefix}posts.ID, {$wpdb->base_prefix}postmeta.meta_key, {$wpdb->base_prefix}postmeta.meta_value
+        FROM {$wpdb->base_prefix}posts
+        INNER JOIN {$wpdb->base_prefix}postmeta
+        ON {$wpdb->base_prefix}postmeta.post_id = {$wpdb->base_prefix}posts.ID
+        WHERE {$wpdb->base_prefix}posts.post_author = {$user_id}
+        AND {$wpdb->base_prefix}posts.post_type = 'pp_plan'
+        AND ({$wpdb->base_prefix}postmeta.meta_key = '{$GLOBALS['ITEM_STATUS_KEY']}' OR {$wpdb->base_prefix}postmeta.meta_key = '{$GLOBALS['ITEM_ID_KEY']}');");
+
+    $results = $wpdb->get_results($sql);
+
+    $payment_plans = array();
+    foreach($results as $result)
+    {
+        if (!array_key_exists($result->ID, $payment_plans))
+        {
+            $payment_plans[$result->ID] = array();
+        }
+
+        $payment_plans[$result->ID][$result->meta_key] = $result->meta_value;
+    }
+
+    return $payment_plans;
+}
+
 // Filter
 
 function check_in_filter($content) 
 {
-    if (($_SERVER['REQUEST_URI'] != '/check-in/') and ($_SERVER['REQUEST_URI'] != '/check-in-stats/'))
+    $url = strtok($_SERVER['REQUEST_URI'], '?');
+    if (($url != '/check-in/') and ($url != '/check-in-stats/'))
     {
         return $content;
+    }
+
+    // Ensure database schema is up-to-date
+    $db_version = get_option($GLOBALS['SM_CHECK_IN_PLUGIN_DB_VERSION_OPTION_NAME']);
+    if ($dbVersion != $GLOBALS['SM_CHECK_IN_PLUGIN_DB_VERSION'])
+    {
+        check_in_db_create_or_update_table();
+        update_option($GLOBALS['SM_CHECK_IN_PLUGIN_DB_VERSION_OPTION_NAME'], $GLOBALS['SM_CHECK_IN_PLUGIN_DB_VERSION']);
     }
 
     // Returns false if password hasn't been entered yet.
@@ -385,7 +595,7 @@ function check_in_filter($content)
         return $content;
     }
 
-    if ($_SERVER['REQUEST_URI'] == '/check-in-stats/')
+    if ($url == '/check-in-stats/')
     {
         return check_in_stats($content);
     }
@@ -415,12 +625,13 @@ function check_in_filter($content)
 
 function check_in_activate()
 {
-    check_in_db_create_table();
+    check_in_db_create_or_update_table();
 }
 
 function check_in_uninstall()
 {
-    check_in_db_drop_table();
+    // Do you really want to do this?
+    //check_in_db_drop_table();
 }
 
 // Register hooks and filters
