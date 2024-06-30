@@ -99,18 +99,18 @@ function check_in_home($content)
 
     // Add Maketeers table
     $content = $content . '<h6>Maketeers:</h6>';
-    $content = add_check_ins_table($content, $check_ins, true);
+    $content = check_in_add_check_ins_table($content, $check_ins, true);
 
     // Add remaining members table
     $content = $content . '<h6>Members:</h6>';
-    $content = add_check_ins_table($content, $check_ins, false);
+    $content = check_in_add_check_ins_table($content, $check_ins, false);
 
     // Add key
     $content = $content . '<h6>Key:</h6>';
-    $content = $content . '<span style="color:white; background-color:' . get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . '">Maketeer</span>, ';
-    $content = $content . '<span style="color:white; background-color:' . get_color_for_membership_status($GLOBALS['ACTIVE_MEMBERSHIP_STATUS']) . '">Active</span>, ';
-    $content = $content . '<span style="color:white; background-color:' . get_color_for_membership_status($GLOBALS['EXPIRED_MEMBERSHIP_STATUS']) . '">Expired or Paused</span>, ';
-    $content = $content . '<span style="color:white; background-color:' . get_color_for_membership_status($GLOBALS['VISITOR_MEMBERSHIP_STATUS']) . '">Visitor or Guest</span>';
+    $content = $content . '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . '">Maketeer</span>, ';
+    $content = $content . '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['ACTIVE_MEMBERSHIP_STATUS']) . '">Active</span>, ';
+    $content = $content . '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['EXPIRED_MEMBERSHIP_STATUS']) . '">Expired or Paused</span>, ';
+    $content = $content . '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['VISITOR_MEMBERSHIP_STATUS']) . '">Visitor or Guest</span>';
 
     $content = $content . '</form></div></div>';
 
@@ -132,7 +132,14 @@ function check_in_visitor_registration($content)
 function check_in_success_user_found($content, $user)
 {
     $payment_plans = check_in_db_get_user_payment_plans($user->ID);
-    $membership_status = get_membership_status_from_payment_plans($payment_plans);
+    $membership_status = check_in_get_membership_status_from_payment_plans($payment_plans);
+
+    // Redirect volunteers to a page where they can select whether
+    // they want to appear as a member or a volunteer on the check-in page.
+    if ($membership_status == $GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS'])
+    {
+        return check_in_success_volunteer_found($content, $user);
+    }
 
     check_in_db_add_check_in($user->ID, $membership_status);
 
@@ -157,6 +164,49 @@ function check_in_success_user_found($content, $user)
     }
 
     $content = check_in_add_redirect_to_home($content, $redirect_time);
+    return $content;
+}
+
+function check_in_success_volunteer_found($content, $user)
+{
+    $content = check_in_add_title($content);
+    $content = $content . "<form action=\"/check-in/\" method=\"post\">";
+    $content = $content . "<input type=\"submit\" id=\"check_in_volunteer_as_volunteer\" name=\"check_in_volunteer_as_volunteer\" value=\"Check in as Maketeer\" style=\"color:white; background-color:" . check_in_get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . "\">&emsp;&emsp;";
+    $content = $content . "<input type=\"submit\" id=\"check_in_volunteer_as_member\" name=\"check_in_volunteer_as_member\" value=\"Check in as Member\" style=\"color:white; background-color:" . check_in_get_color_for_membership_status($GLOBALS['ACTIVE_MEMBERSHIP_STATUS']) . "\">";
+    $content = $content . "<input type=\"hidden\" id=\"volunteer_email\" name=\"volunteer_email\" value=\"" . $user->user_email . "\">";
+    $content = $content . '</form>';
+
+    $redirect_time = 10;
+    $content = check_in_add_redirect_to_home($content, $redirect_time);
+
+    return $content;
+}
+
+function check_in_success_volunteer_add_selected_check_in($content, $volunteer_email, $check_in_as_volunteer)
+{
+    $content = check_in_add_title($content);
+
+    // Find user by email. We should find one and only one. Bail out if we don't.
+    $users = check_in_db_find_users_by_email($volunteer_email);
+    if (count($users) != 1)
+    {
+        $content = "Something went wrong. Please try checking in again.";
+
+        $redirect_time = 5;
+        $content = check_in_add_redirect_to_home($content, $redirect_time);
+
+        return $content;
+    }
+
+    $user = $users[0];
+    $membership_status = $check_in_as_volunteer ? $GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS'] : $GLOBALS['ACTIVE_MEMBERSHIP_STATUS'];
+    check_in_db_add_check_in($user->ID, $membership_status);
+
+    $content = "{$content}<br>Checking in {$user->display_name} as " . ($check_in_as_volunteer ? "Maketeer!" : "Member!");
+
+    $redirect_time = 1;
+    $content = check_in_add_redirect_to_home($content, $redirect_time);
+
     return $content;
 }
 
@@ -200,14 +250,14 @@ function check_in_check_out($content, $user_id, $display_name)
 function check_in_handle_search($content, $user_email)
 {
     $users = check_in_db_find_users_by_email($user_email);
-    $usersCount = count($users);
+    $users_count = count($users);
 
-    if ($usersCount == 0)
+    if ($users_count == 0)
     {
         return check_in_failure_no_user_found($content, $user_email);
     }
 
-    if ($usersCount > 1)
+    if ($users_count > 1)
     {
         return check_in_failure_multiple_users_found($content, $user_email);
     }
@@ -302,7 +352,7 @@ function check_in_add_idle_redirect($content)
     </script>";
 }
 
-function get_membership_status_from_payment_plans($payment_plans)
+function check_in_get_membership_status_from_payment_plans($payment_plans)
 {
     $membership_status = $GLOBALS['UNKNOWN_MEMBERSHIP_STATUS'];
 
@@ -345,7 +395,7 @@ function get_membership_status_from_payment_plans($payment_plans)
     return $membership_status;
 }
 
-function get_color_for_membership_status($membership_status)
+function check_in_get_color_for_membership_status($membership_status)
 {
     switch ($membership_status)
     {
@@ -366,7 +416,7 @@ function get_color_for_membership_status($membership_status)
     }
 }
 
-function add_check_ins_table($content, $check_ins, $volunteers_only)
+function check_in_add_check_ins_table($content, $check_ins, $volunteers_only)
 {
     $content = $content . '<table class="check-ins-table"><tbody>';
 
@@ -385,7 +435,7 @@ function add_check_ins_table($content, $check_ins, $volunteers_only)
         }
 
        // Had to set the button style instead of using CSS class because it was being overridden by Wordpress theme
-        $check_in_button_style = 'background-color:' . get_color_for_membership_status($check_in->membership_status);
+        $check_in_button_style = 'background-color:' . check_in_get_color_for_membership_status($check_in->membership_status);
 
         $content = "{$content}<td class=\"check-ins-table\" align=\"left\"><input style=\"{$check_in_button_style}\" type=\"submit\" id=\"check_out_{$check_in->user_id}\" name=\"check_out_{$check_in->user_id}\" value=\"{$check_in->display_name}\"></td>";
 
@@ -575,7 +625,7 @@ function check_in_filter($content)
 
     // Ensure database schema is up-to-date
     $db_version = get_option($GLOBALS['SM_CHECK_IN_PLUGIN_DB_VERSION_OPTION_NAME']);
-    if ($dbVersion != $GLOBALS['SM_CHECK_IN_PLUGIN_DB_VERSION'])
+    if ($db_version != $GLOBALS['SM_CHECK_IN_PLUGIN_DB_VERSION'])
     {
         check_in_db_create_or_update_table();
         update_option($GLOBALS['SM_CHECK_IN_PLUGIN_DB_VERSION_OPTION_NAME'], $GLOBALS['SM_CHECK_IN_PLUGIN_DB_VERSION']);
@@ -611,6 +661,16 @@ function check_in_filter($content)
         {
             return check_in_visitor_registration($content);
         }
+
+        // Handle the form that allows volunteers to check in as a volunteer or a member.
+        if (($post_key == 'check_in_volunteer_as_volunteer') || ($post_key == 'check_in_volunteer_as_member'))
+        {
+            // volunteer_email should have been sent as part of the same form. If not, just fall through.
+            if (array_key_exists('volunteer_email', $_POST))
+            {
+                return check_in_success_volunteer_add_selected_check_in($content, $_POST["volunteer_email"], ($post_key == 'check_in_volunteer_as_volunteer'));
+            }
+        }
     }
 
     if (array_key_exists('check_in_searched_email', $_POST))
@@ -635,7 +695,6 @@ function check_in_uninstall()
 }
 
 // Register hooks and filters
-
 add_filter('the_content', 'check_in_filter');
 register_activation_hook(__FILE__, 'check_in_activate');
 register_uninstall_hook(__FILE__, 'check_in_uninstall');
