@@ -170,14 +170,14 @@ function check_in_success_user_found($content, $user)
 function check_in_success_volunteer_found($content, $user)
 {
     $content = check_in_add_title($content);
-    $content = $content . "<form action=\"/check-in/\" method=\"post\">";
-    $content = $content . "<input type=\"submit\" id=\"check_in_volunteer_as_volunteer\" name=\"check_in_volunteer_as_volunteer\" value=\"Check in as Maketeer\" style=\"color:white; background-color:" . check_in_get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . "\">&emsp;&emsp;";
-    $content = $content . "<input type=\"submit\" id=\"check_in_volunteer_as_member\" name=\"check_in_volunteer_as_member\" value=\"Check in as Member\" style=\"color:white; background-color:" . check_in_get_color_for_membership_status($GLOBALS['ACTIVE_MEMBERSHIP_STATUS']) . "\">";
-    $content = $content . "<input type=\"hidden\" id=\"volunteer_email\" name=\"volunteer_email\" value=\"" . $user->user_email . "\">";
-    $content = $content . '</form>';
-
-    $redirect_time = 10;
-    $content = check_in_add_redirect_to_home($content, $redirect_time);
+    $content = $content .
+        '<form action="/check-in/" method="post">
+            <input type="submit" id="check_in_volunteer_as_volunteer" name="check_in_volunteer_as_volunteer" value="Check in as Maketeer" style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . '">&emsp;&emsp;
+            <input type="submit" id="check_in_volunteer_as_member" name="check_in_volunteer_as_member" value="Check in as Member" style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['ACTIVE_MEMBERSHIP_STATUS']) . '">
+            <input type="hidden" id="volunteer_email" name="volunteer_email" value="' . $user->user_email . '">
+        </form>
+        <script> setTimeout(function() { document.querySelector(\'[name="check_in_volunteer_as_volunteer"]\').click(); }, 5000); </script>
+        <br><br>Checking in as Maketeer in 5s...';
 
     return $content;
 }
