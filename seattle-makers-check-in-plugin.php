@@ -82,14 +82,14 @@ function check_in_home($content)
         <div class = \"row\">
             <div class = \"column\">
                 <h3>Check In</h3>
-                <form action=\"/check-in/\" method=\"post\">
+                <form action=\"/check-in/\" method=\"post\" onsubmit=\"check_in_submit.disabled = true; return true;\">
                 <label for=\"check_in_searched_email\">Email address you registered with: </label>
                 <input type=\"text\" id=\"check_in_searched_email\" name=\"check_in_searched_email\" oninput=\"check_in_searched_email_on_input()\">
-                <input type=\"submit\" id=\"check_in_submit\" value=\"Check in\" disabled=\"true\">
+                <input type=\"submit\" id=\"check_in_submit\" name=\"check_in_submit\" value=\"Check in\" disabled=\"true\">
                 <br><br><br>
                 <h6>Not already registered?</h6>
                 <input type=\"submit\" id=\"check_in_visitor_registration\" name=\"check_in_visitor_registration\" value=\"Visitor Registration\">
-                <button onclick=\"window.open('/memberships/','_blank')\">Membership Sign-Up</button>
+                <button type=\"button\" onclick=\"window.open('/memberships/','_blank')\">Membership Sign-Up</button>
             </div>
             <div class = \"column\">
                 <h3>Who's In The Space</h3>";
@@ -171,13 +171,13 @@ function check_in_success_volunteer_found($content, $user)
 {
     $content = check_in_add_title($content);
     $content = $content .
-        '<form action="/check-in/" method="post">
+        '<form action="/check-in/" method="post" onsubmit="document.getElementById(\'check_in_volunteer_as_volunteer\').style.visibility = \'hidden\'; document.getElementById(\'check_in_volunteer_as_member\').style.visibility = \'hidden\'; document.getElementById(\'automatically_checking_in_message\').style.visibility = \'hidden\'; return true;"\>
             <input type="submit" id="check_in_volunteer_as_volunteer" name="check_in_volunteer_as_volunteer" value="Check in as Maketeer" style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . '">&emsp;&emsp;
             <input type="submit" id="check_in_volunteer_as_member" name="check_in_volunteer_as_member" value="Check in as Member" style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['ACTIVE_MEMBERSHIP_STATUS']) . '">
             <input type="hidden" id="volunteer_email" name="volunteer_email" value="' . $user->user_email . '">
         </form>
         <script> setTimeout(function() { document.querySelector(\'[name="check_in_volunteer_as_volunteer"]\').click(); }, 5000); </script>
-        <br><br>Checking in as Maketeer in 5s...';
+        <br><br><div id="automatically_checking_in_message">Checking in as Maketeer in 5s...</div>';
 
     return $content;
 }
