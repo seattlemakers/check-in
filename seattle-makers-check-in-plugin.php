@@ -3,10 +3,17 @@
     Plugin Name: Seattle Makers Check-In Plugin
     Plugin URI: https://github.com/seattlemakers/check-in/
     Description: To display at front desk to allow people to check into the space
-    Version: 2.0
+    Version: 2.1
     Author: Adi
     Author URI: https://github.com/adkeswani/
      */
+
+/*
+Changelog:
+### v2.1 - 2025-06-08
+- Detect volunteers and staff using user metadata instead of payment plans
+- Display border to distinguish between staff and volunteers
+*/
 
 // This is a clone of the Interest + Waiver Form that redirects back to the check-in page when form is completed. Use _pp_form_6b326938daaffa3b443ad295f8168d61 for the dev site, _pp_form_fa63fcd59261ceaaa06157028432de5f for prod.
 $VISITOR_REGISTRATION_FORM_EMBED = '[pauf id="_pp_form_fa63fcd59261ceaaa06157028432de5f"]';
@@ -17,9 +24,13 @@ $EXPIRED_MEMBERSHIP_STATUS = 2;
 $VISITOR_MEMBERSHIP_STATUS = 3;
 $VOLUNTEER_MEMBERSHIP_STATUS = 4;
 $PAUSED_MEMBERSHIP_STATUS = 5;
+$STAFF_MEMBERSHIP_STATUS = 6;
 
 $ITEM_ID_KEY = '_pp_item_id';
 $ITEM_STATUS_KEY = '_pp_item_status';
+
+$USER_METADATA_VOLUNTEER_STATUS_KEY = '007ccabca25c28e32048aaec5ecc18e0';
+$USER_METADATA_VOLUNTEER_ROLES_KEY = 'ppu_roles_1506378218';
 
 $SM_CHECK_IN_PLUGIN_DB_VERSION = 2;
 $SM_CHECK_IN_PLUGIN_DB_VERSION_OPTION_NAME = 'sm_check_in_plugin_db_version';
@@ -98,7 +109,7 @@ function check_in_home($content)
     $content = $content . 'Click on your name to check out.<br><br>';
 
     // Add Maketeers table
-    $content = $content . '<h6>Maketeers:</h6>';
+    $content = $content . '<h6 style="display:inline-block; margin-bottom: 0.692em; border:5px solid ' . check_in_get_color_for_membership_status($GLOBALS['STAFF_MEMBERSHIP_STATUS']) . '; padding:3px">Staff</h6><h6 style="display:inline-block; margin-bottom: 0.692em">&nbsp;/&nbsp;<t></h6><h6 style="display:inline-block; margin-bottom: 0.692em">Maketeers:</h6>';
     $content = check_in_add_check_ins_table($content, $check_ins, true);
 
     // Add remaining members table
@@ -107,10 +118,11 @@ function check_in_home($content)
 
     // Add key
     $content = $content . '<h6>Key:</h6>';
+    $content = $content . '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . '; border:5px solid ' . check_in_get_color_for_membership_status($GLOBALS['STAFF_MEMBERSHIP_STATUS']) . ';">Staff</span>, ';
     $content = $content . '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . '">Maketeer</span>, ';
     $content = $content . '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['ACTIVE_MEMBERSHIP_STATUS']) . '">Active</span>, ';
-    $content = $content . '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['EXPIRED_MEMBERSHIP_STATUS']) . '">Expired or Paused</span>, ';
-    $content = $content . '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['VISITOR_MEMBERSHIP_STATUS']) . '">Visitor or Guest</span>';
+    $content = $content . '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['EXPIRED_MEMBERSHIP_STATUS']) . '">Expired/Paused</span>, ';
+    $content = $content . '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['VISITOR_MEMBERSHIP_STATUS']) . '">Visitor/Guest</span>';
 
     $content = $content . '</form></div></div>';
 
@@ -132,13 +144,14 @@ function check_in_visitor_registration($content)
 function check_in_success_user_found($content, $user)
 {
     $payment_plans = check_in_db_get_user_payment_plans($user->ID);
-    $membership_status = check_in_get_membership_status_from_payment_plans($payment_plans);
+    $roles_metadata = check_in_db_get_user_roles_metadata($user->ID);
+    $membership_status = check_in_get_membership_status($payment_plans, $roles_metadata);
 
     // Redirect volunteers to a page where they can select whether
     // they want to appear as a member or a volunteer on the check-in page.
-    if ($membership_status == $GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS'])
+    if (($membership_status == $GLOBALS['STAFF_MEMBERSHIP_STATUS']) || ($membership_status == $GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']))
     {
-        return check_in_success_volunteer_found($content, $user);
+        return check_in_success_volunteer_found($content, $user, $membership_status);
     }
 
     check_in_db_add_check_in($user->ID, $membership_status);
@@ -167,22 +180,23 @@ function check_in_success_user_found($content, $user)
     return $content;
 }
 
-function check_in_success_volunteer_found($content, $user)
+function check_in_success_volunteer_found($content, $user, $membership_status)
 {
     $content = check_in_add_title($content);
     $content = $content .
         '<form action="/check-in/" method="post" onsubmit="document.getElementById(\'check_in_volunteer_as_volunteer\').style.visibility = \'hidden\'; document.getElementById(\'check_in_volunteer_as_member\').style.visibility = \'hidden\'; document.getElementById(\'automatically_checking_in_message\').style.visibility = \'hidden\'; return true;"\>
-            <input type="submit" id="check_in_volunteer_as_volunteer" name="check_in_volunteer_as_volunteer" value="Check in as Maketeer" style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . '">&emsp;&emsp;
+            <input type="submit" id="check_in_volunteer_as_volunteer" name="check_in_volunteer_as_volunteer" value="Check in as Staff/Maketeer" style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . '">&emsp;&emsp;
             <input type="submit" id="check_in_volunteer_as_member" name="check_in_volunteer_as_member" value="Check in as Member" style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['ACTIVE_MEMBERSHIP_STATUS']) . '">
             <input type="hidden" id="volunteer_email" name="volunteer_email" value="' . $user->user_email . '">
+            <input type="hidden" id="membership_status" name="membership_status" value="' . $membership_status . '">
         </form>
         <script> setTimeout(function() { document.querySelector(\'[name="check_in_volunteer_as_volunteer"]\').click(); }, 5000); </script>
-        <br><br><div id="automatically_checking_in_message">Checking in as Maketeer in 5s...</div>';
+        <br><br><div id="automatically_checking_in_message">Checking in as Staff/Maketeer in 5s...</div>';
 
     return $content;
 }
 
-function check_in_success_volunteer_add_selected_check_in($content, $volunteer_email, $check_in_as_volunteer)
+function check_in_success_volunteer_add_selected_check_in($content, $volunteer_email, $membership_status, $check_in_as_volunteer)
 {
     $content = check_in_add_title($content);
 
@@ -199,10 +213,10 @@ function check_in_success_volunteer_add_selected_check_in($content, $volunteer_e
     }
 
     $user = $users[0];
-    $membership_status = $check_in_as_volunteer ? $GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS'] : $GLOBALS['ACTIVE_MEMBERSHIP_STATUS'];
+    $membership_status = $check_in_as_volunteer ? $membership_status : $GLOBALS['ACTIVE_MEMBERSHIP_STATUS'];
     check_in_db_add_check_in($user->ID, $membership_status);
 
-    $content = "{$content}<br>Checking in {$user->display_name} as " . ($check_in_as_volunteer ? "Maketeer!" : "Member!");
+    $content = "{$content}<br>Checking in {$user->display_name} as " . ($check_in_as_volunteer ? "Staff/Maketeer!" : "Member!");
 
     $redirect_time = 1;
     $content = check_in_add_redirect_to_home($content, $redirect_time);
@@ -352,9 +366,39 @@ function check_in_add_idle_redirect($content)
     </script>";
 }
 
-function check_in_get_membership_status_from_payment_plans($payment_plans)
+function check_in_get_membership_status($payment_plans, $roles_metadata)
 {
     $membership_status = $GLOBALS['UNKNOWN_MEMBERSHIP_STATUS'];
+
+    // Check if they are a volunteer
+    if (count($roles_metadata) > 0)
+    {
+        if (array_key_exists($GLOBALS['USER_METADATA_VOLUNTEER_STATUS_KEY'], $roles_metadata))
+        {
+            // Status must be Active
+            if ($roles_metadata[$GLOBALS['USER_METADATA_VOLUNTEER_STATUS_KEY']] == 'Active')
+            {
+                // Role must be either Staff (67) or Maketeer (66)
+                foreach ($roles_metadata as $meta_key => $meta_value)
+                {
+                    if ($meta_key == $GLOBALS['USER_METADATA_VOLUNTEER_ROLES_KEY'])
+                    {
+                        // Staff takes precedence over Maketeer
+                        if (str_contains($meta_value, 's:2:"67"'))
+                        {
+                            $membership_status = $GLOBALS['STAFF_MEMBERSHIP_STATUS'];
+                            return $membership_status;
+                        }
+                        elseif (str_contains($meta_value, 's:2:"66"'))
+                        {
+                            $membership_status = $GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS'];
+                            return $membership_status;
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     // If no payment plans, they're a guest or visitor
     if (count($payment_plans) == 0)
@@ -370,14 +414,9 @@ function check_in_get_membership_status_from_payment_plans($payment_plans)
             {
                 $membership_status = $GLOBALS['ACTIVE_MEMBERSHIP_STATUS'];
 
-                // If the active payment plan is also a volunteer or paused plan, we know the status can stop iterating.
-                // Otherwise we must keep iterating in case there is an active volunteer or paused plan.
-                if ($plan[$GLOBALS['ITEM_ID_KEY']] == 23956)
-                {
-                    $membership_status = $GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS'];
-                    break;
-                }
-                elseif ($plan[$GLOBALS['ITEM_ID_KEY']] == 73733)
+                // If the active payment plan is a paused plan, we can stop iterating.
+                // Otherwise we must keep iterating in case there is a paused plan.
+                if ($plan[$GLOBALS['ITEM_ID_KEY']] == 73733)
                 {
                     $membership_status = $GLOBALS['PAUSED_MEMBERSHIP_STATUS'];
                     break;
@@ -409,6 +448,8 @@ function check_in_get_color_for_membership_status($membership_status)
         return "#2DBD45"; // Bright green
     case $GLOBALS['PAUSED_MEMBERSHIP_STATUS']:
         return "#FC7272"; // Pale red
+    case $GLOBALS['STAFF_MEMBERSHIP_STATUS']:
+        return "#FC6A03"; // Tiger
     default:
         // For unknown or invalid status, just pretend they are active. 
         // When we transition to using these colors, old check-ins will be set to unknown status.
@@ -423,7 +464,7 @@ function check_in_add_check_ins_table($content, $check_ins, $volunteers_only)
     $check_ins_counter = 0;
     foreach($check_ins as $check_in)
     {
-        if ($volunteers_only != ($check_in->membership_status == $GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']))
+        if ($volunteers_only != (($check_in->membership_status == $GLOBALS['STAFF_MEMBERSHIP_STATUS']) || ($check_in->membership_status == $GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS'])))
         {
             continue;
         }
@@ -434,8 +475,15 @@ function check_in_add_check_ins_table($content, $check_ins, $volunteers_only)
             $content = "{$content}<tr class=\"check-ins-table\">";
         }
 
-       // Had to set the button style instead of using CSS class because it was being overridden by Wordpress theme
-        $check_in_button_style = 'background-color:' . check_in_get_color_for_membership_status($check_in->membership_status);
+        // Had to set the button style instead of using CSS class because it was being overridden by Wordpress theme
+        if ($check_in->membership_status == $GLOBALS['STAFF_MEMBERSHIP_STATUS'])
+        {
+            $check_in_button_style = 'background-color:' . check_in_get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . '; border:5px solid ' .  check_in_get_color_for_membership_status($check_in->membership_status);
+        }
+        else
+        {
+            $check_in_button_style = 'background-color:' . check_in_get_color_for_membership_status($check_in->membership_status);
+        }
 
         $content = "{$content}<td class=\"check-ins-table\" align=\"left\"><input style=\"{$check_in_button_style}\" type=\"submit\" id=\"check_out_{$check_in->user_id}\" name=\"check_out_{$check_in->user_id}\" value=\"{$check_in->display_name}\"></td>";
 
@@ -539,9 +587,11 @@ function check_in_db_get_check_ins_all()
         FROM {$wpdb->base_prefix}sm_check_ins
         INNER JOIN {$wpdb->base_prefix}users 
         ON {$wpdb->base_prefix}sm_check_ins.user_id = {$wpdb->base_prefix}users.ID
+        INNER JOIN {$wpdb->base_prefix}usermeta
+        ON {$wpdb->base_prefix}sm_check_ins.user_id = {$wpdb->base_prefix}usermeta.user_id
         ORDER BY {$wpdb->base_prefix}sm_check_ins.id DESC
         LIMIT {$limit};");
-     */
+    */
 
     $results = $wpdb->get_results($sql);
     return $results;
@@ -564,7 +614,7 @@ function check_in_db_get_todays_check_ins()
         WHERE {$wpdb->base_prefix}sm_check_ins.check_out_time IS NULL
         AND {$wpdb->base_prefix}sm_check_ins.check_in_time IS NOT NULL
         AND {$wpdb->base_prefix}sm_check_ins.check_in_time > STR_TO_DATE('{$today_midnight_utc_string}', '%%Y-%%m-%%d %%h:%%i:%%s')
-        ORDER BY {$wpdb->base_prefix}users.display_name;");
+        ORDER BY {$wpdb->base_prefix}sm_check_ins.membership_status DESC, {$wpdb->base_prefix}users.display_name;");
 
     $results = $wpdb->get_results($sql);
     return $results;
@@ -611,6 +661,26 @@ function check_in_db_get_user_payment_plans($user_id)
     }
 
     return $payment_plans;
+}
+
+function check_in_db_get_user_roles_metadata($user_id)
+{
+    global $wpdb;
+    $sql = $wpdb->prepare("
+        SELECT {$wpdb->base_prefix}usermeta.meta_key, {$wpdb->base_prefix}usermeta.meta_value
+        FROM {$wpdb->base_prefix}usermeta
+        WHERE {$wpdb->base_prefix}usermeta.user_id = {$user_id}
+        AND ({$wpdb->base_prefix}usermeta.meta_key = '{$GLOBALS['USER_METADATA_VOLUNTEER_STATUS_KEY']}' OR {$wpdb->base_prefix}usermeta.meta_key LIKE '{$GLOBALS['USER_METADATA_VOLUNTEER_ROLES_KEY']}');");
+
+    $results = $wpdb->get_results($sql);
+
+    $roles_metadata = array();
+    foreach($results as $result)
+    {
+        $roles_metadata[$result->meta_key] = $result->meta_value;
+    }
+
+    return $roles_metadata;
 }
 
 // Filter
@@ -665,10 +735,10 @@ function check_in_filter($content)
         // Handle the form that allows volunteers to check in as a volunteer or a member.
         if (($post_key == 'check_in_volunteer_as_volunteer') || ($post_key == 'check_in_volunteer_as_member'))
         {
-            // volunteer_email should have been sent as part of the same form. If not, just fall through.
-            if (array_key_exists('volunteer_email', $_POST))
+            // volunteer_email and membership_status should have been sent as part of the same form. If not, just fall through.
+            if (array_key_exists('volunteer_email', $_POST) && array_key_exists('membership_status', $_POST))
             {
-                return check_in_success_volunteer_add_selected_check_in($content, $_POST["volunteer_email"], ($post_key == 'check_in_volunteer_as_volunteer'));
+                return check_in_success_volunteer_add_selected_check_in($content, $_POST["volunteer_email"], $_POST["membership_status"], ($post_key == 'check_in_volunteer_as_volunteer'));
             }
         }
     }
