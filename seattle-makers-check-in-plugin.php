@@ -3,13 +3,16 @@
     Plugin Name: Seattle Makers Check-In Plugin
     Plugin URI: https://github.com/seattlemakers/check-in/
     Description: To display at front desk to allow people to check into the space
-    Version: 2.1
+    Version: 2.2
     Author: Adi
     Author URI: https://github.com/adkeswani/
      */
 
 /*
 Changelog:
+### v2.2 - 2026-04-12
+- Split guests into their own group below members on the check-in display
+
 ### v2.1 - 2025-06-08
 - Detect volunteers and staff using user metadata instead of payment plans
 - Display border to distinguish between staff and volunteers
@@ -25,6 +28,10 @@ $VISITOR_MEMBERSHIP_STATUS = 3;
 $VOLUNTEER_MEMBERSHIP_STATUS = 4;
 $PAUSED_MEMBERSHIP_STATUS = 5;
 $STAFF_MEMBERSHIP_STATUS = 6;
+
+$CHECKIN_GROUP_STAFF_VOLUNTEER = 'staff_volunteer';
+$CHECKIN_GROUP_MEMBER = 'member';
+$CHECKIN_GROUP_GUEST = 'guest';
 
 $ITEM_ID_KEY = '_pp_item_id';
 $ITEM_STATUS_KEY = '_pp_item_status';
@@ -108,23 +115,28 @@ function check_in_home($content)
     $check_ins = check_in_db_get_todays_check_ins();
     $content = $content . 'Click on your name to check out.<br><br>';
 
-    // Add Maketeers table
-    $content = $content . '<h6 style="display:inline-block; margin-bottom: 0.692em; border:5px solid ' . check_in_get_color_for_membership_status($GLOBALS['STAFF_MEMBERSHIP_STATUS']) . '; padding:3px">Staff</h6><h6 style="display:inline-block; margin-bottom: 0.692em">&nbsp;/&nbsp;<t></h6><h6 style="display:inline-block; margin-bottom: 0.692em">Maketeers:</h6>';
-    $content = check_in_add_check_ins_table($content, $check_ins, true);
 
-    // Add remaining members table
-    $content = $content . '<h6>Members:</h6>';
-    $content = check_in_add_check_ins_table($content, $check_ins, false);
+    // Add Staff/Maketeers table
+    $content .= '<h6 style="display:inline-block; margin-bottom: 0.692em; border:5px solid ' . check_in_get_color_for_membership_status($GLOBALS['STAFF_MEMBERSHIP_STATUS']) . '; padding:3px">Staff</h6><h6 style="display:inline-block; margin-bottom: 0.692em">&nbsp;/&nbsp;<t></h6><h6 style="display:inline-block; margin-bottom: 0.692em">Maketeers:</h6>';
+    $content = check_in_add_check_ins_table_group($content, $check_ins, $GLOBALS['CHECKIN_GROUP_STAFF_VOLUNTEER']);
+
+    // Add Members table
+    $content .= '<h6>Members:</h6>';
+    $content = check_in_add_check_ins_table_group($content, $check_ins, $GLOBALS['CHECKIN_GROUP_MEMBER']);
+
+    // Add Guests table
+    $content .= '<h6>Guests:</h6>';
+    $content = check_in_add_check_ins_table_group($content, $check_ins, $GLOBALS['CHECKIN_GROUP_GUEST']);
 
     // Add key
-    $content = $content . '<h6>Key:</h6>';
-    $content = $content . '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . '; border:5px solid ' . check_in_get_color_for_membership_status($GLOBALS['STAFF_MEMBERSHIP_STATUS']) . ';">Staff</span>, ';
-    $content = $content . '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . '">Maketeer</span>, ';
-    $content = $content . '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['ACTIVE_MEMBERSHIP_STATUS']) . '">Active</span>, ';
-    $content = $content . '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['EXPIRED_MEMBERSHIP_STATUS']) . '">Expired/Paused</span>, ';
-    $content = $content . '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['VISITOR_MEMBERSHIP_STATUS']) . '">Visitor/Guest</span>';
+    $content .= '<h6>Key:</h6>';
+    $content .= '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . '; border:5px solid ' . check_in_get_color_for_membership_status($GLOBALS['STAFF_MEMBERSHIP_STATUS']) . ';">Staff</span>, ';
+    $content .= '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . '">Maketeer</span>, ';
+    $content .= '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['ACTIVE_MEMBERSHIP_STATUS']) . '">Active</span>, ';
+    $content .= '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['EXPIRED_MEMBERSHIP_STATUS']) . '">Expired/Paused</span>, ';
+    $content .= '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['VISITOR_MEMBERSHIP_STATUS']) . '">Visitor/Guest</span>';
 
-    $content = $content . '</form></div></div>';
+    $content .= '</form></div></div>';
 
     // TODO: Show events below form
 
@@ -457,46 +469,53 @@ function check_in_get_color_for_membership_status($membership_status)
     }
 }
 
-function check_in_add_check_ins_table($content, $check_ins, $volunteers_only)
-{
-    $content = $content . '<table class="check-ins-table"><tbody>';
 
+// New function to handle three groups: staff/volunteers, members, guests
+function check_in_add_check_ins_table_group($content, $check_ins, $group)
+{
+    $content .= '<table class="check-ins-table"><tbody>';
     $check_ins_counter = 0;
     foreach($check_ins as $check_in)
     {
-        if ($volunteers_only != (($check_in->membership_status == $GLOBALS['STAFF_MEMBERSHIP_STATUS']) || ($check_in->membership_status == $GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS'])))
-        {
+        $is_staff = ($check_in->membership_status == $GLOBALS['STAFF_MEMBERSHIP_STATUS']);
+        $is_volunteer = ($check_in->membership_status == $GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']);
+        $is_member = ($check_in->membership_status == $GLOBALS['ACTIVE_MEMBERSHIP_STATUS'] || $check_in->membership_status == $GLOBALS['EXPIRED_MEMBERSHIP_STATUS'] || $check_in->membership_status == $GLOBALS['PAUSED_MEMBERSHIP_STATUS']);
+        $is_guest = ($check_in->membership_status == $GLOBALS['VISITOR_MEMBERSHIP_STATUS']);
+
+        $show = false;
+        if ($group === $GLOBALS['CHECKIN_GROUP_STAFF_VOLUNTEER'] && ($is_staff || $is_volunteer)) {
+            $show = true;
+        } elseif ($group === $GLOBALS['CHECKIN_GROUP_MEMBER'] && $is_member) {
+            $show = true;
+        } elseif ($group === $GLOBALS['CHECKIN_GROUP_GUEST'] && $is_guest) {
+            $show = true;
+        }
+        if (!$show) {
             continue;
         }
 
         // Show two buttons per line
-        if ($check_ins_counter % 2 == 0)
-        {
-            $content = "{$content}<tr class=\"check-ins-table\">";
+        if ($check_ins_counter % 2 == 0) {
+            $content .= "<tr class=\"check-ins-table\">";
         }
 
         // Had to set the button style instead of using CSS class because it was being overridden by Wordpress theme
-        if ($check_in->membership_status == $GLOBALS['STAFF_MEMBERSHIP_STATUS'])
-        {
-            $check_in_button_style = 'background-color:' . check_in_get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . '; border:5px solid ' .  check_in_get_color_for_membership_status($check_in->membership_status);
-        }
-        else
-        {
+        if ($is_staff) {
+            $check_in_button_style = 'background-color:' . check_in_get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . '; border:5px solid ' .  check_in_get_color_for_membership_status($GLOBALS['STAFF_MEMBERSHIP_STATUS']);
+        } else {
             $check_in_button_style = 'background-color:' . check_in_get_color_for_membership_status($check_in->membership_status);
         }
 
-        $content = "{$content}<td class=\"check-ins-table\" align=\"left\"><input style=\"{$check_in_button_style}\" type=\"submit\" id=\"check_out_{$check_in->user_id}\" name=\"check_out_{$check_in->user_id}\" value=\"{$check_in->display_name}\"></td>";
+        $content .= "<td class=\"check-ins-table\" align=\"left\"><input style=\"{$check_in_button_style}\" type=\"submit\" id=\"check_out_{$check_in->user_id}\" name=\"check_out_{$check_in->user_id}\" value=\"{$check_in->display_name}\"></td>";
 
         // Show two buttons per line
-        if ($check_ins_counter % 2 == 1)
-        {
-            $content = "{$content}</tr>";
+        if ($check_ins_counter % 2 == 1) {
+            $content .= "</tr>";
         }
 
         $check_ins_counter += 1;
     }
-
-    $content = $content . '</tbody></table>';
+    $content .= '</tbody></table>';
     return $content;
 }
 
