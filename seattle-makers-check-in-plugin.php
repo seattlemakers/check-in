@@ -12,6 +12,7 @@
 Changelog:
 ### v2.2 - 2026-04-12
 - Split guests into their own group below members on the check-in display
+- Note: Use "nobody@nobody.nbd" as a test Guest user on the dev site
 
 ### v2.1 - 2025-06-08
 - Detect volunteers and staff using user metadata instead of payment plans
