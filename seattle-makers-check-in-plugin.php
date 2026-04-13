@@ -131,11 +131,16 @@ function check_in_home($content)
 
     // Add key
     $content .= '<h6>Key:</h6>';
-    $content .= '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . '; border:5px solid ' . check_in_get_color_for_membership_status($GLOBALS['STAFF_MEMBERSHIP_STATUS']) . ';">Staff</span>, ';
-    $content .= '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . '">Maketeer</span>, ';
-    $content .= '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['ACTIVE_MEMBERSHIP_STATUS']) . '">Active</span>, ';
-    $content .= '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['EXPIRED_MEMBERSHIP_STATUS']) . '">Expired/Paused</span>, ';
-    $content .= '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['VISITOR_MEMBERSHIP_STATUS']) . '">Visitor/Guest</span>';
+    $content .= '<div style="font-size:13px; line-height:1.6;">';
+    foreach ($GLOBALS['CATEGORY_COLORS'] as $category_name => $category_hex) {
+        $content .= '<span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color:' . $category_hex . '; vertical-align:middle; margin-right:3px;"></span>' . $category_name . '&emsp;';
+    }
+    $content .= '</div>';
+    $content .= '<div style="font-size:13px; margin-top:4px;">';
+    $content .= '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['ACTIVE_MEMBERSHIP_STATUS']) . '; padding:1px 4px;">Active</span> ';
+    $content .= '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['EXPIRED_MEMBERSHIP_STATUS']) . '; padding:1px 4px;">Expired/Paused</span> ';
+    $content .= '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['VISITOR_MEMBERSHIP_STATUS']) . '; padding:1px 4px;">Visitor/Guest</span>';
+    $content .= '</div>';
 
     $content .= '</form></div></div>';
 
@@ -470,6 +475,52 @@ function check_in_get_color_for_membership_status($membership_status)
     }
 }
 
+// Category color definitions
+$CATEGORY_COLORS = array(
+    '3D Printing'    => '#FF7F00',
+    'Laser Cutting'  => '#E60012',
+    'Lapidary'       => '#800020',
+    'Ceramics'       => '#E8A0C0',
+    'Sewing'         => '#800080',
+    'A/V Studio'     => '#0033CC',
+    'Screen Printing'=> '#C0DDE8',
+    'Electronics'    => '#009640',
+    'Arts & Crafts'  => '#D5E680',
+    'Woodshop'       => '#FFC830',
+    'CNC Routing'    => '#C07800',
+    'Metalworking'   => '#B8B8B8',
+    'Staff'          => '#FC6A03',
+    'Volunteer'      => '#2DBD45',
+);
+
+// Email-to-categories mappings (add overrides here)
+$EMAIL_TO_CATEGORIES = array(
+    // 'someone@example.com' => array('3D Printing', 'Laser Cutting'),
+);
+
+// Returns the list of category colors for a staff/volunteer user.
+// Default: array with just Volunteer color.
+function check_in_get_category_colors_for_user($user_email)
+{
+    $email_to_categories = $GLOBALS['EMAIL_TO_CATEGORIES'];
+    $category_colors = $GLOBALS['CATEGORY_COLORS'];
+
+    if ($user_email && array_key_exists($user_email, $email_to_categories)) {
+        $colors = array();
+        foreach ($email_to_categories[$user_email] as $category) {
+            if (array_key_exists($category, $category_colors)) {
+                $colors[] = $category_colors[$category];
+            }
+        }
+        if (!empty($colors)) {
+            return $colors;
+        }
+    }
+
+    // Default: Volunteer category
+    return array($category_colors['Volunteer']);
+}
+
 
 // New function to handle three groups: staff/volunteers, members, guests
 function check_in_add_check_ins_table_group($content, $check_ins, $group)
@@ -501,13 +552,18 @@ function check_in_add_check_ins_table_group($content, $check_ins, $group)
         }
 
         // Had to set the button style instead of using CSS class because it was being overridden by Wordpress theme
-        if ($is_staff) {
-            $check_in_button_style = 'background-color:' . check_in_get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . '; border:5px solid ' .  check_in_get_color_for_membership_status($GLOBALS['STAFF_MEMBERSHIP_STATUS']);
+        if ($is_staff || $is_volunteer) {
+            $category_colors = check_in_get_category_colors_for_user($check_in->user_email);
+            $check_in_button_style = 'background-color:white; color:black; border:5px solid black';
+            $dots_html = '';
+            foreach ($category_colors as $color) {
+                $dots_html .= '<span style="display:inline-block; width:12px; height:12px; border-radius:50%; background-color:' . $color . '; margin-right:4px; vertical-align:middle;"></span>';
+            }
+            $content .= "<td class=\"check-ins-table\" align=\"left\"><button style=\"{$check_in_button_style}\" type=\"submit\" id=\"check_out_{$check_in->user_id}\" name=\"check_out_{$check_in->user_id}\" value=\"{$check_in->display_name}\">{$dots_html}{$check_in->display_name}</button></td>";
         } else {
             $check_in_button_style = 'background-color:' . check_in_get_color_for_membership_status($check_in->membership_status);
+            $content .= "<td class=\"check-ins-table\" align=\"left\"><input style=\"{$check_in_button_style}\" type=\"submit\" id=\"check_out_{$check_in->user_id}\" name=\"check_out_{$check_in->user_id}\" value=\"{$check_in->display_name}\"></td>";
         }
-
-        $content .= "<td class=\"check-ins-table\" align=\"left\"><input style=\"{$check_in_button_style}\" type=\"submit\" id=\"check_out_{$check_in->user_id}\" name=\"check_out_{$check_in->user_id}\" value=\"{$check_in->display_name}\"></td>";
 
         // Show two buttons per line
         if ($check_ins_counter % 2 == 1) {
@@ -627,7 +683,7 @@ function check_in_db_get_todays_check_ins()
     // Get all users after midnight today. Double percentage signs escapes percentage signs for the prepare call.
     global $wpdb;
     $sql = $wpdb->prepare("
-        SELECT {$wpdb->base_prefix}sm_check_ins.user_id, {$wpdb->base_prefix}users.display_name, {$wpdb->base_prefix}sm_check_ins.membership_status
+        SELECT {$wpdb->base_prefix}sm_check_ins.user_id, {$wpdb->base_prefix}users.display_name, {$wpdb->base_prefix}users.user_email, {$wpdb->base_prefix}sm_check_ins.membership_status
         FROM {$wpdb->base_prefix}sm_check_ins
         INNER JOIN {$wpdb->base_prefix}users 
         ON {$wpdb->base_prefix}sm_check_ins.user_id = {$wpdb->base_prefix}users.ID
