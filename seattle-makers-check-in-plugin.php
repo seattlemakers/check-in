@@ -118,7 +118,7 @@ function check_in_home($content)
 
 
     // Add Staff/Maketeers table
-    $content .= '<h6 style="display:inline-block; margin-bottom: 0.692em; border:5px solid ' . check_in_get_color_for_membership_status($GLOBALS['STAFF_MEMBERSHIP_STATUS']) . '; padding:3px">Staff</h6><h6 style="display:inline-block; margin-bottom: 0.692em">&nbsp;/&nbsp;<t></h6><h6 style="display:inline-block; margin-bottom: 0.692em">Maketeers:</h6>';
+    $content .= '<h6 style="display:inline-block; margin-bottom: 0.692em">Staff</h6><h6 style="display:inline-block; margin-bottom: 0.692em">&nbsp;/&nbsp;<t></h6><h6 style="display:inline-block; margin-bottom: 0.692em">Maketeers:</h6>';
     $content = check_in_add_check_ins_table_group($content, $check_ins, $GLOBALS['CHECKIN_GROUP_STAFF_VOLUNTEER']);
 
     // Add Members table
