@@ -133,7 +133,7 @@ function check_in_home($content)
     $content .= '<h6>Key:</h6>';
     $content .= '<div style="font-size:13px; line-height:1.6;">';
     foreach ($GLOBALS['CATEGORY_COLORS'] as $category_name => $category_hex) {
-        $content .= '<span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color:' . $category_hex . '; vertical-align:middle; margin-right:3px;"></span>' . $category_name . '&emsp;';
+        $content .= '<span style="display:inline-block; white-space:nowrap;"><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color:' . $category_hex . '; vertical-align:middle; margin-right:3px;"></span>' . $category_name . '</span>&emsp;';
     }
     $content .= '</div>';
     $content .= '<div style="font-size:13px; margin-top:4px;">';
