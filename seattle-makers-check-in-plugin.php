@@ -499,26 +499,33 @@ $EMAIL_TO_CATEGORIES = array(
 );
 
 // Returns the list of category colors for a staff/volunteer user.
-// Default: array with just Volunteer color.
-function check_in_get_category_colors_for_user($user_email)
+function check_in_get_category_colors_for_user($user_email, $is_staff)
 {
     $email_to_categories = $GLOBALS['EMAIL_TO_CATEGORIES'];
     $category_colors = $GLOBALS['CATEGORY_COLORS'];
 
+    $colors = array();
+
+    // Staff always get the Staff dot first
+    if ($is_staff) {
+        $colors[] = $category_colors['Staff'];
+    }
+
+    // Add any category dots from the email mapping
     if ($user_email && array_key_exists($user_email, $email_to_categories)) {
-        $colors = array();
         foreach ($email_to_categories[$user_email] as $category) {
             if (array_key_exists($category, $category_colors)) {
                 $colors[] = $category_colors[$category];
             }
         }
-        if (!empty($colors)) {
-            return $colors;
-        }
     }
 
-    // Default: Volunteer category
-    return array($category_colors['Volunteer']);
+    // Volunteers with no categories get the Volunteer dot
+    if (empty($colors)) {
+        $colors[] = $category_colors['Volunteer'];
+    }
+
+    return $colors;
 }
 
 
@@ -553,7 +560,7 @@ function check_in_add_check_ins_table_group($content, $check_ins, $group)
 
         // Had to set the button style instead of using CSS class because it was being overridden by Wordpress theme
         if ($is_staff || $is_volunteer) {
-            $category_colors = check_in_get_category_colors_for_user($check_in->user_email);
+            $category_colors = check_in_get_category_colors_for_user($check_in->user_email, $is_staff);
             $check_in_button_style = 'background-color:white; color:black; border:5px solid black';
             $dots_html = '';
             foreach ($category_colors as $color) {
