@@ -470,6 +470,58 @@ function check_in_get_color_for_membership_status($membership_status)
     }
 }
 
+// Category color definitions
+$CATEGORY_COLORS = array(
+    '3D Printing'    => '#FF7F00',
+    'Laser Cutting'  => '#E60012',
+    'Lapidary'       => '#800020',
+    'Ceramics'       => '#E8A0C0',
+    'Sewing'         => '#800080',
+    'A/V Studio'     => '#0033CC',
+    'Screen Printing'=> '#C0DDE8',
+    'Electronics'    => '#009640',
+    'Arts & Crafts'  => '#D5E680',
+    'Woodshop'       => '#FFC830',
+    'CNC Routing'    => '#C07800',
+    'Metalworking'   => '#B8B8B8',
+    'Staff'          => '#000000',
+    'Volunteer'      => '#008080',
+);
+
+// Email-to-categories mappings (add overrides here)
+$EMAIL_TO_CATEGORIES = array(
+    // 'someone@example.com' => array('3D Printing', 'Laser Cutting'),
+);
+
+// Returns the list of category colors for a staff/volunteer user.
+function check_in_get_category_colors_for_user($user_email, $is_staff)
+{
+    $email_to_categories = $GLOBALS['EMAIL_TO_CATEGORIES'];
+    $category_colors = $GLOBALS['CATEGORY_COLORS'];
+
+    $colors = array();
+
+    // Staff always get the Staff dot first
+    if ($is_staff) {
+        $colors[] = $category_colors['Staff'];
+    }
+
+    // Add any category dots from the email mapping
+    if ($user_email && array_key_exists($user_email, $email_to_categories)) {
+        foreach ($email_to_categories[$user_email] as $category) {
+            if (array_key_exists($category, $category_colors)) {
+                $colors[] = $category_colors[$category];
+            }
+        }
+    }
+
+    // Volunteers with no categories get the Volunteer dot
+    if (empty($colors)) {
+        $colors[] = $category_colors['Volunteer'];
+    }
+
+    return $colors;
+}
 
 // New function to handle three groups: staff/volunteers, members, guests
 function check_in_add_check_ins_table_group($content, $check_ins, $group)
@@ -501,13 +553,24 @@ function check_in_add_check_ins_table_group($content, $check_ins, $group)
         }
 
         // Had to set the button style instead of using CSS class because it was being overridden by Wordpress theme
-        if ($is_staff) {
-            $check_in_button_style = 'background-color:' . check_in_get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . '; border:5px solid ' .  check_in_get_color_for_membership_status($GLOBALS['STAFF_MEMBERSHIP_STATUS']);
+        if ($is_staff || $is_volunteer) {
+            $bg_color = check_in_get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']);
+            if ($is_staff) {
+                $category_color = $GLOBALS['CATEGORY_COLORS']['Staff'];
+            } else {
+                $category_colors = check_in_get_category_colors_for_user($check_in->user_email, false);
+                $category_color = !empty($category_colors) ? $category_colors[0] : $GLOBALS['CATEGORY_COLORS']['Volunteer'];
+            }
+            $check_in_button_style = 'background-color:white; color:black; border:1px solid black; box-shadow:0 0 0 4px ' . $category_color . '; outline:1px solid black; outline-offset:4px';
+            $content .= "<td class=\"check-ins-table\" align=\"left\"><button style=\"{$check_in_button_style}\" type=\"submit\" id=\"check_out_{$check_in->user_id}\" name=\"check_out_{$check_in->user_id}\" value=\"{$check_in->display_name}\">{$check_in->display_name}</button></td>";
         } else {
-            $check_in_button_style = 'background-color:' . check_in_get_color_for_membership_status($check_in->membership_status);
+            $status_color = check_in_get_color_for_membership_status($check_in->membership_status);
+            $is_expired = ($check_in->membership_status == $GLOBALS['EXPIRED_MEMBERSHIP_STATUS'] || $check_in->membership_status == $GLOBALS['PAUSED_MEMBERSHIP_STATUS']);
+            $bg_color = $is_expired ? $status_color : 'white';
+            $text_color = $is_expired ? 'white' : 'black';
+            $check_in_button_style = 'background-color:' . $bg_color . '; color:' . $text_color . '; border:1px solid black; box-shadow:0 0 0 4px ' . $status_color . '; outline:1px solid black; outline-offset:4px';
+            $content .= "<td class=\"check-ins-table\" align=\"left\"><input style=\"{$check_in_button_style}\" type=\"submit\" id=\"check_out_{$check_in->user_id}\" name=\"check_out_{$check_in->user_id}\" value=\"{$check_in->display_name}\"></td>";
         }
-
-        $content .= "<td class=\"check-ins-table\" align=\"left\"><input style=\"{$check_in_button_style}\" type=\"submit\" id=\"check_out_{$check_in->user_id}\" name=\"check_out_{$check_in->user_id}\" value=\"{$check_in->display_name}\"></td>";
 
         // Show two buttons per line
         if ($check_ins_counter % 2 == 1) {

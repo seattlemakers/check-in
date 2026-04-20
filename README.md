@@ -13,6 +13,10 @@
 12. In the right pane, under Publish > Visibility, set it to Private and hit OK.
 13. Hit Publish. This page should now only be accessible to administrators. It currently displays the database contents for the last 1000 check-ins.
 
+**Developer setup:**
+1. After cloning, run `./setup.sh` (Mac/Linux) or `./setup.ps1` (Windows) to configure git hooks.
+2. This enables the pre-commit hook that blocks commits containing email addresses.
+
 **Uninstall instructions:**
 1. Sign in with administrator Wordpress account.
 2. Go to Plugins > Installed Plugins > Seattle Makers Check In Plugin > Deactivate.
