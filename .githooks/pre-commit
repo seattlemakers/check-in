@@ -1,0 +1,26 @@
+#!/bin/sh
+#
+# Pre-commit hook: reject commits containing email addresses in staged files.
+# Allowed emails (test/example addresses) are excluded from the check.
+
+ALLOWED_EMAILS="nobody@nobody.nbd|someone@example.com"
+
+# Email regex pattern
+EMAIL_PATTERN='[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
+
+# Check staged file contents (only added/modified lines)
+matches=$(git diff --cached --diff-filter=ACMR -U0 | grep '^\+' | grep -v '^\+\+\+' | grep -oE "$EMAIL_PATTERN" | grep -viE "$ALLOWED_EMAILS" || true)
+
+if [ -n "$matches" ]; then
+    echo "ERROR: Commit blocked - email address(es) found in staged changes:"
+    echo ""
+    echo "$matches" | sort -u | while read -r email; do
+        echo "  $email"
+    done
+    echo ""
+    echo "Remove email addresses before committing."
+    echo "If this is a false positive, use 'git commit --no-verify' to bypass."
+    exit 1
+fi
+
+exit 0
