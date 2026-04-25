@@ -271,8 +271,8 @@ function check_in_success_member_select_category($content, $user, $membership_st
         var form = document.querySelector(\'form[action="/check-in/"]\');
         var input = form.querySelector(\'[name="check_in_member_category"][value="None"]\');
         if (input) input.click();
-    }, 7000); </script>';
-    $content .= '<br><div id="auto_category_message">Auto-selecting None in 7s...</div>';
+    }, 10000); </script>';
+    $content .= '<br><div id="auto_category_message">Auto-selecting None in 10s...</div>';
 
     return $content;
 }
@@ -282,6 +282,7 @@ function check_in_success_member_category_selected($content, $member_email, $mem
     $content = check_in_add_title($content);
 
     // Whitelist category against known categories
+    // Note: This technically allows Staff/Volunteer as values, but there's no UI to select them.
     $valid_categories = array_keys($GLOBALS['CATEGORY_COLORS']);
     if (!in_array($category, $valid_categories)) {
         $category = 'None';
