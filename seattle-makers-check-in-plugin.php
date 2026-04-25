@@ -40,7 +40,7 @@ $ITEM_STATUS_KEY = '_pp_item_status';
 $USER_METADATA_VOLUNTEER_STATUS_KEY = '007ccabca25c28e32048aaec5ecc18e0';
 $USER_METADATA_VOLUNTEER_ROLES_KEY = 'ppu_roles_1506378218';
 
-$SM_CHECK_IN_PLUGIN_DB_VERSION = 2;
+$SM_CHECK_IN_PLUGIN_DB_VERSION = 3;
 $SM_CHECK_IN_PLUGIN_DB_VERSION_OPTION_NAME = 'sm_check_in_plugin_db_version';
 
 function check_in_home($content)
@@ -118,7 +118,7 @@ function check_in_home($content)
 
 
     // Add Staff/Maketeers table
-    $content .= '<h6 style="display:inline-block; margin-bottom: 0.692em; border:5px solid ' . check_in_get_color_for_membership_status($GLOBALS['STAFF_MEMBERSHIP_STATUS']) . '; padding:3px">Staff</h6><h6 style="display:inline-block; margin-bottom: 0.692em">&nbsp;/&nbsp;<t></h6><h6 style="display:inline-block; margin-bottom: 0.692em">Maketeers:</h6>';
+    $content .= '<h6 style="display:inline-block; margin-bottom: 0.692em">Staff</h6><h6 style="display:inline-block; margin-bottom: 0.692em">&nbsp;/&nbsp;<t></h6><h6 style="display:inline-block; margin-bottom: 0.692em">Maketeers:</h6>';
     $content = check_in_add_check_ins_table_group($content, $check_ins, $GLOBALS['CHECKIN_GROUP_STAFF_VOLUNTEER']);
 
     // Add Members table
@@ -131,11 +131,15 @@ function check_in_home($content)
 
     // Add key
     $content .= '<h6>Key:</h6>';
-    $content .= '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . '; border:5px solid ' . check_in_get_color_for_membership_status($GLOBALS['STAFF_MEMBERSHIP_STATUS']) . ';">Staff</span>, ';
-    $content .= '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']) . '">Maketeer</span>, ';
-    $content .= '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['ACTIVE_MEMBERSHIP_STATUS']) . '">Active</span>, ';
-    $content .= '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['EXPIRED_MEMBERSHIP_STATUS']) . '">Expired/Paused</span>, ';
-    $content .= '<span style="color:white; background-color:' . check_in_get_color_for_membership_status($GLOBALS['VISITOR_MEMBERSHIP_STATUS']) . '">Visitor/Guest</span>';
+    $category_colors = $GLOBALS['CATEGORY_COLORS'];
+    foreach ($category_colors as $category_name => $category_hex) {
+        if ($category_name === 'None') continue;
+        $content .= '<span style="display:inline-block; white-space:nowrap; margin-right:1em;"><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color:' . $category_hex . '; vertical-align:middle; margin-right:3px;"></span>' . $category_name . '</span>';
+    }
+    $content .= '<br>';
+    $content .= '<span style="display:inline-block; white-space:nowrap; margin-right:1em;"><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color:' . check_in_get_color_for_membership_status($GLOBALS['ACTIVE_MEMBERSHIP_STATUS']) . '; vertical-align:middle; margin-right:3px;"></span>Active</span>';
+    $content .= '<span style="display:inline-block; white-space:nowrap; margin-right:1em;"><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color:' . check_in_get_color_for_membership_status($GLOBALS['EXPIRED_MEMBERSHIP_STATUS']) . '; vertical-align:middle; margin-right:3px;"></span>Expired/Paused</span>';
+    $content .= '<span style="display:inline-block; white-space:nowrap;"><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color:' . check_in_get_color_for_membership_status($GLOBALS['VISITOR_MEMBERSHIP_STATUS']) . '; vertical-align:middle; margin-right:3px;"></span>Visitor/Guest</span>';
 
     $content .= '</form></div></div>';
 
@@ -167,30 +171,20 @@ function check_in_success_user_found($content, $user)
         return check_in_success_volunteer_found($content, $user, $membership_status);
     }
 
-    check_in_db_add_check_in($user->ID, $membership_status);
+    // Guests check in immediately without category selection
+    if ($membership_status == $GLOBALS['VISITOR_MEMBERSHIP_STATUS'])
+    {
+        check_in_db_add_check_in($user->ID, $membership_status);
 
-    $content = check_in_add_title($content);
-    $content = "{$content}<br>Welcome, {$user->display_name}!";
-    $redirect_time = 1;
-
-    if ($membership_status == $GLOBALS['EXPIRED_MEMBERSHIP_STATUS'])
-    {
-        $content = "{$content}<br><div style=\"color:red; font-weight:bold;\">Your membership is expired. Please ensure that your payment details are correct and see the front desk.</div>";
-        $redirect_time = 5;
-    }
-    elseif ($membership_status == $GLOBALS['PAUSED_MEMBERSHIP_STATUS'])
-    {
-        $content = "{$content}<br><div style=\"color:red; font-weight:bold;\">Your membership is paused. Please see the front desk to resume it.</div>";
-        $redirect_time = 5;
-    }
-    elseif ($membership_status == $GLOBALS['VISITOR_MEMBERSHIP_STATUS'])
-    {
+        $content = check_in_add_title($content);
+        $content = "{$content}<br>Welcome, {$user->display_name}!";
         $content = "{$content}<br><div style=\"font-weight:bold;\">Please note that membership or a guest pass is required for tool use.</div>";
-        $redirect_time = 3;
+        $content = check_in_add_redirect_to_home($content, 3);
+        return $content;
     }
 
-    $content = check_in_add_redirect_to_home($content, $redirect_time);
-    return $content;
+    // Members get a category selection page
+    return check_in_success_member_select_category($content, $user, $membership_status);
 }
 
 function check_in_success_volunteer_found($content, $user, $membership_status)
@@ -234,6 +228,79 @@ function check_in_success_volunteer_add_selected_check_in($content, $volunteer_e
     $redirect_time = 1;
     $content = check_in_add_redirect_to_home($content, $redirect_time);
 
+    return $content;
+}
+
+function check_in_success_member_select_category($content, $user, $membership_status)
+{
+    $content = check_in_add_title($content);
+    $content = "{$content}<br>Welcome, {$user->display_name}! What space will you be working in today?<br><br>";
+
+    if ($membership_status == $GLOBALS['EXPIRED_MEMBERSHIP_STATUS'])
+    {
+        $content = "{$content}<div style=\"color:red; font-weight:bold;\">Your membership is expired. Please ensure that your payment details are correct and see the front desk.</div><br>";
+    }
+    elseif ($membership_status == $GLOBALS['PAUSED_MEMBERSHIP_STATUS'])
+    {
+        $content = "{$content}<div style=\"color:red; font-weight:bold;\">Your membership is paused. Please see the front desk to resume it.</div><br>";
+    }
+
+    $content .= '<form action="/check-in/" method="post">';
+    $content .= '<input type="hidden" name="check_in_member_email" value="' . $user->user_email . '">';
+    $content .= '<input type="hidden" name="check_in_member_membership_status" value="' . $membership_status . '">';
+
+    $icons_url = plugin_dir_url(__FILE__) . 'icons/';
+    $category_icons = $GLOBALS['CATEGORY_ICONS'];
+    $category_colors = $GLOBALS['CATEGORY_COLORS'];
+
+    $content .= '<div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; max-width:600px;">';
+    foreach ($category_icons as $category_name => $icon_file) {
+        $color = $category_colors[$category_name];
+        $icon_url = $icons_url . $icon_file;
+        $content .= '<button type="submit" name="check_in_member_category" value="' . $category_name . '" style="display:flex; align-items:center; gap:8px; padding:10px; background-color:white; border:3px solid ' . $color . '; border-radius:8px; cursor:pointer; font-size:16px; font-weight:bold;">';
+        $content .= '<img src="' . $icon_url . '" alt="" style="width:40px; height:40px;">';
+        $content .= $category_name;
+        $content .= '</button>';
+    }
+    $content .= '</div>';
+
+    $content .= '<br><input type="submit" name="check_in_member_category" value="None" style="margin:4px;">';
+    $content .= '</form>';
+
+    $content .= '<script> setTimeout(function() { 
+        var form = document.querySelector(\'form[action="/check-in/"]\');
+        var input = form.querySelector(\'[name="check_in_member_category"][value="None"]\');
+        if (input) input.click();
+    }, 7000); </script>';
+    $content .= '<br><div id="auto_category_message">Auto-selecting None in 7s...</div>';
+
+    return $content;
+}
+
+function check_in_success_member_category_selected($content, $member_email, $membership_status, $category)
+{
+    $content = check_in_add_title($content);
+
+    // Whitelist category against known categories
+    $valid_categories = array_keys($GLOBALS['CATEGORY_COLORS']);
+    if (!in_array($category, $valid_categories)) {
+        $category = 'None';
+    }
+
+    // Re-lookup user by email (same pattern as volunteer flow — needed because this is a new HTTP request)
+    $users = check_in_db_find_users_by_email($member_email);
+    if (count($users) != 1)
+    {
+        $content = "{$content}<br>Something went wrong. Please try checking in again.";
+        $content = check_in_add_redirect_to_home($content, 5);
+        return $content;
+    }
+
+    $user = $users[0];
+    check_in_db_add_check_in($user->ID, $membership_status, $category);
+
+    $content = "{$content}<br>Checked in {$user->display_name}!";
+    $content = check_in_add_redirect_to_home($content, 1);
     return $content;
 }
 
@@ -473,24 +540,65 @@ function check_in_get_color_for_membership_status($membership_status)
 // Category color definitions
 $CATEGORY_COLORS = array(
     '3D Printing'    => '#FF7F00',
-    'Laser Cutting'  => '#E60012',
-    'Lapidary'       => '#800020',
-    'Ceramics'       => '#E8A0C0',
-    'Sewing'         => '#800080',
     'A/V Studio'     => '#0033CC',
-    'Screen Printing'=> '#C0DDE8',
-    'Electronics'    => '#009640',
     'Arts & Crafts'  => '#D5E680',
-    'Woodshop'       => '#FFC830',
+    'Ceramics'       => '#E8A0C0',
     'CNC Routing'    => '#C07800',
+    'Electronics'    => '#009640',
+    'Lapidary'       => '#800020',
+    'Laser Cutting'  => '#E60012',
     'Metalworking'   => '#B8B8B8',
+    'Screen Printing'=> '#C0DDE8',
+    'Sewing'         => '#800080',
+    'Woodshop'       => '#FFC830',
     'Staff'          => '#000000',
-    'Volunteer'      => '#008080',
+    'None'           => '#FFFFFF',
+);
+
+// Category icon filenames (relative to plugin icons/ directory)
+$CATEGORY_ICONS = array(
+    '3D Printing'    => '3d_printing.png',
+    'A/V Studio'     => 'av_studio.png',
+    'Arts & Crafts'  => 'arts_and_crafts.png',
+    'Ceramics'       => 'ceramics.png',
+    'CNC Routing'    => 'cnc_routing.png',
+    'Electronics'    => 'electronics.png',
+    'Lapidary'       => 'lapidary.png',
+    'Laser Cutting'  => 'laser_cutting.png',
+    'Metalworking'   => 'metalworking.png',
+    'Screen Printing'=> 'screen_printing.png',
+    'Sewing'         => 'sewing.png',
+    'Woodshop'       => 'woodshop.png',
 );
 
 // Email-to-categories mappings (add overrides here)
 $EMAIL_TO_CATEGORIES = array(
-    // 'someone@example.com' => array('3D Printing', 'Laser Cutting'),
+    'REDACTED@example.com' => array('Screen Printing'),                  // Angelica Carner
+    'REDACTED@example.com' => array('Woodshop'),                   // Ayush Narayan
+    'REDACTED@example.com' => array('Metalworking'),                       // Brandon Martin-Anderson
+    'REDACTED@example.com' => array('Sewing'),                           // Daniel Hua
+    'REDACTED@example.com' => array('Ceramics'),                   // Dustin Low
+    'REDACTED@example.com' => array('Woodshop'),                           // Ellory Appleton
+    'REDACTED@example.com' => array('Electronics'),                   // Erik Bergstrom
+    'REDACTED@example.com' => array('3D Printing'),                 // George Montano
+    'REDACTED@example.com' => array('Ceramics'),                     // Hanna Meyer
+    'REDACTED@example.com' => array('Woodshop'),                        // Jim Masson
+    'REDACTED@example.com' => array('Sewing'),                          // KJ Tagestad
+    'REDACTED@example.com' => array('Laser Cutting', 'Arts & Crafts'), // Laura Cameron
+    'REDACTED@example.com' => array('Ceramics'),                          // Levi O
+    'REDACTED@example.com' => array('Sewing'),                            // Lizzy Ahler
+    'REDACTED@example.com' => array('Sewing'),                       // Marissa Mullenix
+    'REDACTED@example.com' => array('Electronics', 'Sewing'),       // Matthew Johnson
+    'REDACTED@example.com' => array('Electronics'),                     // Max Madamba
+    'REDACTED@example.com' => array('Ceramics'),                       // Nicole Anderson
+    'REDACTED@example.com' => array('3D Printing'),                            // Norman Sohl
+    'REDACTED@example.com' => array('Laser Cutting'),                    // Roger Jacobsen
+    'REDACTED@example.com' => array('Ceramics'),                        // Rylin VanDoren
+    'REDACTED@example.com' => array('Electronics'),                 // Sammy Kothe
+    'REDACTED@example.com' => array('A/V Studio'),                 // Scott Rankin
+    'REDACTED@example.com' => array('Laser Cutting', 'A/V Studio'),         // Sethy Ferreira
+    'REDACTED@example.com' => array('CNC Routing'),                      // Thi Tran
+    'REDACTED@example.com' => array('Woodshop'),                      // Tory Watson
 );
 
 // Returns the list of category colors for a staff/volunteer user.
@@ -517,7 +625,7 @@ function check_in_get_category_colors_for_user($user_email, $is_staff)
 
     // Volunteers with no categories get the Volunteer dot
     if (empty($colors)) {
-        $colors[] = $category_colors['Volunteer'];
+        $colors[] = $category_colors['None'];
     }
 
     return $colors;
@@ -559,16 +667,22 @@ function check_in_add_check_ins_table_group($content, $check_ins, $group)
                 $category_color = $GLOBALS['CATEGORY_COLORS']['Staff'];
             } else {
                 $category_colors = check_in_get_category_colors_for_user($check_in->user_email, false);
-                $category_color = !empty($category_colors) ? $category_colors[0] : $GLOBALS['CATEGORY_COLORS']['Volunteer'];
+                $category_color = !empty($category_colors) ? $category_colors[0] : $GLOBALS['CATEGORY_COLORS']['None'];
             }
             $check_in_button_style = 'background-color:white; color:black; border:1px solid black; box-shadow:0 0 0 4px ' . $category_color . '; outline:1px solid black; outline-offset:4px';
             $content .= "<td class=\"check-ins-table\" align=\"left\"><button style=\"{$check_in_button_style}\" type=\"submit\" id=\"check_out_{$check_in->user_id}\" name=\"check_out_{$check_in->user_id}\" value=\"{$check_in->display_name}\">{$check_in->display_name}</button></td>";
         } else {
-            $status_color = check_in_get_color_for_membership_status($check_in->membership_status);
+            // Guests use membership status color for ring; members use stored category
+            if ($is_guest) {
+                $ring_color = check_in_get_color_for_membership_status($check_in->membership_status);
+            } else {
+                $category = isset($check_in->category) ? $check_in->category : 'None';
+                $ring_color = array_key_exists($category, $GLOBALS['CATEGORY_COLORS']) ? $GLOBALS['CATEGORY_COLORS'][$category] : $GLOBALS['CATEGORY_COLORS']['None'];
+            }
             $is_expired = ($check_in->membership_status == $GLOBALS['EXPIRED_MEMBERSHIP_STATUS'] || $check_in->membership_status == $GLOBALS['PAUSED_MEMBERSHIP_STATUS']);
-            $bg_color = $is_expired ? $status_color : 'white';
+            $bg_color = $is_expired ? check_in_get_color_for_membership_status($check_in->membership_status) : 'white';
             $text_color = $is_expired ? 'white' : 'black';
-            $check_in_button_style = 'background-color:' . $bg_color . '; color:' . $text_color . '; border:1px solid black; box-shadow:0 0 0 4px ' . $status_color . '; outline:1px solid black; outline-offset:4px';
+            $check_in_button_style = 'background-color:' . $bg_color . '; color:' . $text_color . '; border:1px solid black; box-shadow:0 0 0 4px ' . $ring_color . '; outline:1px solid black; outline-offset:4px';
             $content .= "<td class=\"check-ins-table\" align=\"left\"><input style=\"{$check_in_button_style}\" type=\"submit\" id=\"check_out_{$check_in->user_id}\" name=\"check_out_{$check_in->user_id}\" value=\"{$check_in->display_name}\"></td>";
         }
 
@@ -597,6 +711,7 @@ function check_in_db_create_or_update_table()
         check_in_time datetime NOT NULL,
         check_out_time datetime,
         membership_status tinyint unsigned NOT NULL,
+        category varchar(50),
         PRIMARY KEY  (id)) {$charset_collate};";
 
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
@@ -623,15 +738,15 @@ function check_in_db_find_users_by_email($user_email)
     return $results;
 }
 
-function check_in_db_add_check_in($user_id, $membership_status)
+function check_in_db_add_check_in($user_id, $membership_status, $category = 'None')
 {
     global $wpdb;
-    $sql = $wpdb->prepare("
-        INSERT INTO {$wpdb->base_prefix}sm_check_ins (user_id, check_in_time, membership_status)
-        VALUES ({$user_id}, UTC_TIMESTAMP(), {$membership_status});");
-
-    $results = $wpdb->get_results($sql);
-    return $results;
+    $wpdb->insert("{$wpdb->base_prefix}sm_check_ins", array(
+        'user_id' => $user_id,
+        'check_in_time' => current_time('mysql', true),
+        'membership_status' => $membership_status,
+        'category' => $category,
+    ));
 }
 
 function check_in_db_get_check_ins_all()
@@ -690,7 +805,7 @@ function check_in_db_get_todays_check_ins()
     // Get all users after midnight today. Double percentage signs escapes percentage signs for the prepare call.
     global $wpdb;
     $sql = $wpdb->prepare("
-        SELECT {$wpdb->base_prefix}sm_check_ins.user_id, {$wpdb->base_prefix}users.display_name, {$wpdb->base_prefix}sm_check_ins.membership_status
+        SELECT {$wpdb->base_prefix}sm_check_ins.user_id, {$wpdb->base_prefix}users.display_name, {$wpdb->base_prefix}users.user_email, {$wpdb->base_prefix}sm_check_ins.membership_status, {$wpdb->base_prefix}sm_check_ins.category
         FROM {$wpdb->base_prefix}sm_check_ins
         INNER JOIN {$wpdb->base_prefix}users 
         ON {$wpdb->base_prefix}sm_check_ins.user_id = {$wpdb->base_prefix}users.ID
@@ -822,6 +937,15 @@ function check_in_filter($content)
             if (array_key_exists('volunteer_email', $_POST) && array_key_exists('membership_status', $_POST))
             {
                 return check_in_success_volunteer_add_selected_check_in($content, $_POST["volunteer_email"], $_POST["membership_status"], ($post_key == 'check_in_volunteer_as_volunteer'));
+            }
+        }
+
+        // Handle the form that allows members to select a category/space.
+        if ($post_key == 'check_in_member_category')
+        {
+            if (array_key_exists('check_in_member_email', $_POST) && array_key_exists('check_in_member_membership_status', $_POST))
+            {
+                return check_in_success_member_category_selected($content, $_POST['check_in_member_email'], $_POST['check_in_member_membership_status'], $post_value);
             }
         }
     }
