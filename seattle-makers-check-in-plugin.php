@@ -198,7 +198,7 @@ function check_in_success_user_found($content, $user)
         {
             $content = "{$content}<br><div style=\"color:red; font-weight:bold;\">Your membership is paused. Please see the front desk to resume it.</div>";
         }
-        $content = check_in_add_redirect_to_home($content, 5);
+        $content = check_in_add_redirect_to_home($content, 10);
         return $content;
     }
 
