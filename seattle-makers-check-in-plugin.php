@@ -591,32 +591,7 @@ $CATEGORY_ICONS = array(
 
 // Email-to-categories mappings (add overrides here)
 $EMAIL_TO_CATEGORIES = array(
-    'toshimoto@gmail.com' => array('Screen Printing'),                  // Angelica Carner
-    'ayush.s.narayan@gmail.com' => array('Woodshop'),                   // Ayush Narayan
-    'badhill@gmail.com' => array('Metalworking'),                       // Brandon Martin-Anderson
-    'dhua@alumni.cmu.edu' => array('Sewing'),                           // Daniel Hua
-    'dustinlowdesign@gmail.com' => array('Ceramics'),                   // Dustin Low
-    '831elle@gmail.com' => array('Woodshop'),                           // Ellory Appleton
-    'ebergstrom95@gmail.com' => array('Electronics'),                   // Erik Bergstrom
-    'jems.montano19@gmail.com' => array('3D Printing'),                 // George Montano
-    'hannaleemeyer@gmail.com' => array('Ceramics'),                     // Hanna Meyer
-    'jim@taperedgrain.com' => array('Woodshop'),                        // Jim Masson
-    'l.tagestad@gmail.com' => array('Sewing'),                          // KJ Tagestad
-    'lauradianecameron@gmail.com' => array('Laser Cutting', 'Arts & Crafts'), // Laura Cameron
-    'm.tjpjq@slmail.me' => array('Ceramics'),                          // Levi O
-    'ahlerliz@gmail.com' => array('Sewing'),                            // Lizzy Ahler
-    'mari.mullenix@gmail.com' => array('Sewing'),                       // Marissa Mullenix
-    'aviaramjohnson@gmail.com' => array('Electronics', 'Sewing'),       // Matthew Johnson
-    'abmadamxam@gmail.com' => array('Electronics'),                     // Max Madamba
-    'nic.glo.and@gmail.com' => array('Ceramics'),                       // Nicole Anderson
-    'norm@sohl.com' => array('3D Printing'),                            // Norman Sohl
-    'rgj123890@gmail.com' => array('Laser Cutting'),                    // Roger Jacobsen
-    'esvandoren@gmail.com' => array('Ceramics'),                        // Rylin VanDoren
-    'sammykopenguin@gmail.com' => array('Electronics'),                 // Sammy Kothe
-    'badgernsquirrel@gmail.com' => array('A/V Studio'),                 // Scott Rankin
-    'mail@sethy.site' => array('Laser Cutting', 'A/V Studio'),         // Sethy Ferreira
-    'torghiria@gmail.com' => array('CNC Routing'),                      // Thi Tran
-    'contact@torywatson.com' => array('Woodshop'),                      // Tory Watson
+    // 'someone@example.com' => array('3D Printing', 'Laser Cutting'),
 );
 
 // Returns the list of category colors for a staff/volunteer user.
