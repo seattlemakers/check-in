@@ -215,8 +215,6 @@ function check_in_success_volunteer_found($content, $user, $membership_status)
 
 function check_in_success_volunteer_add_selected_check_in($content, $volunteer_email, $membership_status, $check_in_as_volunteer)
 {
-    $content = check_in_add_title($content);
-
     // Find user by email. We should find one and only one. Bail out if we don't.
     $users = check_in_db_find_users_by_email($volunteer_email);
     if (count($users) != 1)
@@ -231,6 +229,8 @@ function check_in_success_volunteer_add_selected_check_in($content, $volunteer_e
 
     $user = $users[0];
     if ($check_in_as_volunteer) {
+        $content = check_in_add_title($content);
+
         // Store the volunteer's first mapped category, or 'None'
         $email_to_categories = $GLOBALS['EMAIL_TO_CATEGORIES'];
         $category = ($user->user_email && array_key_exists($user->user_email, $email_to_categories))
