@@ -231,7 +231,18 @@ function check_in_success_volunteer_add_selected_check_in($content, $volunteer_e
 
     $user = $users[0];
     $membership_status = $check_in_as_volunteer ? $membership_status : $GLOBALS['ACTIVE_MEMBERSHIP_STATUS'];
-    check_in_db_add_check_in($user->ID, $membership_status);
+
+    if ($check_in_as_volunteer) {
+        // Store the volunteer's first mapped category, or 'None'
+        $email_to_categories = $GLOBALS['EMAIL_TO_CATEGORIES'];
+        $category = ($user->user_email && array_key_exists($user->user_email, $email_to_categories))
+            ? $email_to_categories[$user->user_email][0]
+            : 'None';
+        check_in_db_add_check_in($user->ID, $membership_status, $category);
+    } else {
+        // Checking in as member — they'll get category selection on next step
+        check_in_db_add_check_in($user->ID, $membership_status);
+    }
 
     $content = "{$content}<br>Checking in {$user->display_name} as " . ($check_in_as_volunteer ? "Staff/Maketeer!" : "Member!");
 
