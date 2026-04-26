@@ -253,7 +253,7 @@ function check_in_success_member_select_category($content, $user, $membership_st
     $category_icons = $GLOBALS['CATEGORY_ICONS'];
     $category_colors = $GLOBALS['CATEGORY_COLORS'];
 
-    $content .= '<div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; max-width:600px;">';
+    $content .= '<div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; max-width:700px;">';
     foreach ($category_icons as $category_name => $icon_file) {
         $color = $category_colors[$category_name];
         $icon_url = $icons_url . $icon_file;
