@@ -591,32 +591,7 @@ $CATEGORY_ICONS = array(
 
 // Email-to-categories mappings (add overrides here)
 $EMAIL_TO_CATEGORIES = array(
-    'REDACTED@example.com' => array('Screen Printing'),                  // Angelica Carner
-    'REDACTED@example.com' => array('Woodshop'),                   // Ayush Narayan
-    'REDACTED@example.com' => array('Metalworking'),                       // Brandon Martin-Anderson
-    'REDACTED@example.com' => array('Sewing'),                           // Daniel Hua
-    'REDACTED@example.com' => array('Ceramics'),                   // Dustin Low
-    'REDACTED@example.com' => array('Woodshop'),                           // Ellory Appleton
-    'REDACTED@example.com' => array('Electronics'),                   // Erik Bergstrom
-    'REDACTED@example.com' => array('3D Printing'),                 // George Montano
-    'REDACTED@example.com' => array('Ceramics'),                     // Hanna Meyer
-    'REDACTED@example.com' => array('Woodshop'),                        // Jim Masson
-    'REDACTED@example.com' => array('Sewing'),                          // KJ Tagestad
-    'REDACTED@example.com' => array('Laser Cutting', 'Arts & Crafts'), // Laura Cameron
-    'REDACTED@example.com' => array('Ceramics'),                          // Levi O
-    'REDACTED@example.com' => array('Sewing'),                            // Lizzy Ahler
-    'REDACTED@example.com' => array('Sewing'),                       // Marissa Mullenix
-    'REDACTED@example.com' => array('Electronics', 'Sewing'),       // Matthew Johnson
-    'REDACTED@example.com' => array('Electronics'),                     // Max Madamba
-    'REDACTED@example.com' => array('Ceramics'),                       // Nicole Anderson
-    'REDACTED@example.com' => array('3D Printing'),                            // Norman Sohl
-    'REDACTED@example.com' => array('Laser Cutting'),                    // Roger Jacobsen
-    'REDACTED@example.com' => array('Ceramics'),                        // Rylin VanDoren
-    'REDACTED@example.com' => array('Electronics'),                 // Sammy Kothe
-    'REDACTED@example.com' => array('A/V Studio'),                 // Scott Rankin
-    'REDACTED@example.com' => array('Laser Cutting', 'A/V Studio'),         // Sethy Ferreira
-    'REDACTED@example.com' => array('CNC Routing'),                      // Thi Tran
-    'REDACTED@example.com' => array('Woodshop'),                      // Tory Watson
+    // 'someone@example.com' => array('3D Printing', 'Laser Cutting'),
 );
 
 // Returns the list of category colors for a staff/volunteer user.
