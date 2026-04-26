@@ -9,7 +9,7 @@ ALLOWED_EMAILS="nobody@nobody.nbd|someone@example.com"
 EMAIL_PATTERN='[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
 
 # Check staged file contents (only added/modified lines)
-matches=$(git diff --cached --diff-filter=ACMR -U0 | grep '^\+' | grep -v '^\+\+\+' | grep -oE "$EMAIL_PATTERN" | grep -viE "$ALLOWED_EMAILS" || true)
+matches=$(git diff --cached --diff-filter=ACMR -U0 | grep '^+' | grep -v '^+++' | grep -oE "$EMAIL_PATTERN" | grep -viE "$ALLOWED_EMAILS" || true)
 
 if [ -n "$matches" ]; then
     echo "ERROR: Commit blocked - email address(es) found in staged changes:"
