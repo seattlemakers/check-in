@@ -257,7 +257,7 @@ function check_in_success_member_select_category($content, $user, $membership_st
     foreach ($category_icons as $category_name => $icon_file) {
         $color = $category_colors[$category_name];
         $icon_url = $icons_url . $icon_file;
-        $content .= '<button type="submit" name="check_in_member_category" value="' . $category_name . '" style="display:flex; align-items:center; gap:8px; padding:10px; background-color:white; border:3px solid ' . $color . '; border-radius:8px; cursor:pointer; font-size:16px; font-weight:bold;">';
+        $content .= '<button type="submit" name="check_in_member_category" value="' . $category_name . '" style="display:flex; align-items:center; gap:8px; padding:10px; background-color:white; color:black; border:3px solid ' . $color . '; border-radius:8px; cursor:pointer; font-size:16px; font-weight:bold;">';
         $content .= '<img src="' . $icon_url . '" alt="" style="width:40px; height:40px;">';
         $content .= $category_name;
         $content .= '</button>';
