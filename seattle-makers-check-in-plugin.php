@@ -230,8 +230,6 @@ function check_in_success_volunteer_add_selected_check_in($content, $volunteer_e
     }
 
     $user = $users[0];
-    $membership_status = $check_in_as_volunteer ? $membership_status : $GLOBALS['ACTIVE_MEMBERSHIP_STATUS'];
-
     if ($check_in_as_volunteer) {
         // Store the volunteer's first mapped category, or 'None'
         $email_to_categories = $GLOBALS['EMAIL_TO_CATEGORIES'];
@@ -239,17 +237,15 @@ function check_in_success_volunteer_add_selected_check_in($content, $volunteer_e
             ? $email_to_categories[$user->user_email][0]
             : 'None';
         check_in_db_add_check_in($user->ID, $membership_status, $category);
+
+        $content = "{$content}<br>Checking in {$user->display_name} as Staff/Maketeer!";
+        $content = check_in_add_redirect_to_home($content, 1);
+        return $content;
     } else {
-        // Checking in as member — they'll get category selection on next step
-        check_in_db_add_check_in($user->ID, $membership_status);
+        // Checking in as member — send to category selection
+        $membership_status = $GLOBALS['ACTIVE_MEMBERSHIP_STATUS'];
+        return check_in_success_member_select_category($content, $user, $membership_status);
     }
-
-    $content = "{$content}<br>Checking in {$user->display_name} as " . ($check_in_as_volunteer ? "Staff/Maketeer!" : "Member!");
-
-    $redirect_time = 1;
-    $content = check_in_add_redirect_to_home($content, $redirect_time);
-
-    return $content;
 }
 
 function check_in_success_member_select_category($content, $user, $membership_status)
