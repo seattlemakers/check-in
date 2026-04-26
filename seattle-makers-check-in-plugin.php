@@ -1,5 +1,11 @@
 <?php
     /*
+    Timestamps (check_in_time, check_out_time) are always stored as UTC in the database.
+    To display today's check-ins, we compare stored timestamps against midnight Seattle time
+    (America/Los_Angeles) converted to UTC.
+    */
+
+    /*
     Plugin Name: Seattle Makers Check-In Plugin
     Plugin URI: https://github.com/seattlemakers/check-in/
     Description: To display at front desk to allow people to check into the space
