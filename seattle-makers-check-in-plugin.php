@@ -255,7 +255,8 @@ function check_in_success_member_select_category($content, $user, $membership_st
 
     if ($membership_status == $GLOBALS['EXPIRED_MEMBERSHIP_STATUS'])
     {
-        $content = "{$content}<div style=\"color:red; font-weight:bold;\">Your membership is expired. Please ensure that your payment details are correct and see the front desk.</div><br>";
+        $content = "{$content}<div style=\"color:red; font-weight:bold;\">Your membership is expired. Please ensure that your payment details are correct and see the front desk.</div>";
+        $content = "{$content}<div style=\"font-size:14px; font-style:italic;\">If today is within a day or two of your renewal date, your payment may still be processing and you can ignore this.</div><br>";
     }
     elseif ($membership_status == $GLOBALS['PAUSED_MEMBERSHIP_STATUS'])
     {
