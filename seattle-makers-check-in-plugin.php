@@ -183,26 +183,7 @@ function check_in_success_user_found($content, $user)
         return $content;
     }
 
-    // Expired/paused members check in immediately without category selection
-    if ($membership_status == $GLOBALS['EXPIRED_MEMBERSHIP_STATUS'] || $membership_status == $GLOBALS['PAUSED_MEMBERSHIP_STATUS'])
-    {
-        check_in_db_add_check_in($user->ID, $membership_status);
-
-        $content = check_in_add_title($content);
-        $content = "{$content}<br>Welcome, {$user->display_name}!";
-        if ($membership_status == $GLOBALS['EXPIRED_MEMBERSHIP_STATUS'])
-        {
-            $content = "{$content}<br><div style=\"color:red; font-weight:bold;\">Your membership is expired. Please ensure that your payment details are correct and see the front desk.</div>";
-        }
-        else
-        {
-            $content = "{$content}<br><div style=\"color:red; font-weight:bold;\">Your membership is paused. Please see the front desk to resume it.</div>";
-        }
-        $content = check_in_add_redirect_to_home($content, 10);
-        return $content;
-    }
-
-    // Active members get a category selection page
+    // All members (active, expired, paused) get a category selection page
     return check_in_success_member_select_category($content, $user, $membership_status);
 }
 
@@ -254,6 +235,15 @@ function check_in_success_member_select_category($content, $user, $membership_st
 {
     $content = check_in_add_title($content);
     $content = "{$content}<br>Welcome, {$user->display_name}! What space will you be working in today?<br><br>";
+
+    if ($membership_status == $GLOBALS['EXPIRED_MEMBERSHIP_STATUS'])
+    {
+        $content = "{$content}<div style=\"color:red; font-weight:bold;\">Your membership is expired. Please ensure that your payment details are correct and see the front desk.</div><br>";
+    }
+    elseif ($membership_status == $GLOBALS['PAUSED_MEMBERSHIP_STATUS'])
+    {
+        $content = "{$content}<div style=\"color:red; font-weight:bold;\">Your membership is paused. Please see the front desk to resume it.</div><br>";
+    }
 
     $content .= '<form action="/check-in/" method="post">';
     $content .= '<input type="hidden" name="check_in_member_email" value="' . $user->user_email . '">';
@@ -683,7 +673,7 @@ function check_in_add_check_ins_table_group($content, $check_ins, $group)
             $check_in_button_style = 'background-color:white; color:black; border:1px solid black; box-shadow:0 0 0 4px ' . $category_color . '; outline:1px solid black; outline-offset:4px';
             $content .= "<td class=\"check-ins-table\" align=\"left\"><button style=\"{$check_in_button_style}\" type=\"submit\" id=\"check_out_{$check_in->user_id}\" name=\"check_out_{$check_in->user_id}\" value=\"{$check_in->display_name}\">{$check_in->display_name}</button></td>";
         } else {
-            // Guests and expired/paused use membership status color for ring; active members use stored category
+            // Guests use membership status color for ring; members use stored category
             if ($is_guest) {
                 $ring_color = check_in_get_color_for_membership_status($check_in->membership_status);
             } else {
@@ -691,10 +681,9 @@ function check_in_add_check_ins_table_group($content, $check_ins, $group)
                 $ring_color = array_key_exists($category, $GLOBALS['CATEGORY_COLORS']) ? $GLOBALS['CATEGORY_COLORS'][$category] : $GLOBALS['CATEGORY_COLORS']['None'];
             }
             $is_expired = ($check_in->membership_status == $GLOBALS['EXPIRED_MEMBERSHIP_STATUS'] || $check_in->membership_status == $GLOBALS['PAUSED_MEMBERSHIP_STATUS']);
-            if ($is_expired) {
-                $ring_color = check_in_get_color_for_membership_status($check_in->membership_status);
-            }
-            $check_in_button_style = 'background-color:white; color:black; border:1px solid black; box-shadow:0 0 0 4px ' . $ring_color . '; outline:1px solid black; outline-offset:4px';
+            $bg_color = $is_expired ? check_in_get_color_for_membership_status($check_in->membership_status) : 'white';
+            $text_color = $is_expired ? 'white' : 'black';
+            $check_in_button_style = 'background-color:' . $bg_color . '; color:' . $text_color . '; border:1px solid black; box-shadow:0 0 0 4px ' . $ring_color . '; outline:1px solid black; outline-offset:4px';
             $content .= "<td class=\"check-ins-table\" align=\"left\"><input style=\"{$check_in_button_style}\" type=\"submit\" id=\"check_out_{$check_in->user_id}\" name=\"check_out_{$check_in->user_id}\" value=\"{$check_in->display_name}\"></td>";
         }
 
