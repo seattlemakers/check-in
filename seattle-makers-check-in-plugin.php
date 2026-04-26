@@ -264,12 +264,11 @@ function check_in_success_member_select_category($content, $user, $membership_st
     }
     $content .= '</div>';
 
-    $content .= '<br><input type="submit" name="check_in_member_category" value="None" style="margin:4px;">';
+    $content .= '<input type="submit" name="check_in_member_category" value="None" style="display:none;" id="check_in_none_button">';
     $content .= '</form>';
 
     $content .= '<script> setTimeout(function() { 
-        var form = document.querySelector(\'form[action="/check-in/"]\');
-        var input = form.querySelector(\'[name="check_in_member_category"][value="None"]\');
+        var input = document.getElementById(\'check_in_none_button\');
         if (input) input.click();
     }, 10000); </script>';
     $content .= '<br><div id="auto_category_message">Auto-selecting None in 10s...</div>';
