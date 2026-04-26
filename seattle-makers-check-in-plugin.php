@@ -147,8 +147,8 @@ function check_in_home($content)
         $content .= '<span style="display:inline-block; white-space:nowrap; margin-right:1em;"><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color:' . $category_hex . '; vertical-align:middle; margin-right:3px;"></span>' . $category_name . '</span>';
     }
     $content .= '<br>';
-    $content .= '<span style="display:inline-block; white-space:nowrap; margin-right:1em;"><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color:' . check_in_get_color_for_membership_status($GLOBALS['ACTIVE_MEMBERSHIP_STATUS']) . '; vertical-align:middle; margin-right:3px;"></span>Active</span>';
     $content .= '<span style="display:inline-block; white-space:nowrap; margin-right:1em;"><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color:' . check_in_get_color_for_membership_status($GLOBALS['VISITOR_MEMBERSHIP_STATUS']) . '; vertical-align:middle; margin-right:3px;"></span>Visitor/Guest</span>';
+    $content .= '<span style="display:inline-block; white-space:nowrap; margin-right:1em;"><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background-color:white; border:1px solid black; vertical-align:middle; margin-right:3px;"></span>None</span>';
     $content .= '<span style="display:inline-block; white-space:nowrap; background-color:' . check_in_get_color_for_membership_status($GLOBALS['EXPIRED_MEMBERSHIP_STATUS']) . '; color:white; padding:2px 6px; border-radius:3px;">Expired/Paused</span>';
 
     $content .= '</form></div></div>';
