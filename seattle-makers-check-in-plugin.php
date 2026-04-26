@@ -3,13 +3,23 @@
     Plugin Name: Seattle Makers Check-In Plugin
     Plugin URI: https://github.com/seattlemakers/check-in/
     Description: To display at front desk to allow people to check into the space
-    Version: 2.2
+    Version: 2.4
     Author: Adi
     Author URI: https://github.com/adkeswani/
      */
 
 /*
 Changelog:
+### v2.4 - 2026-04-26
+- Add category selection with icons when members check in
+- Store selected category in database
+- Show category color as ring on check-in display buttons
+
+### v2.3 - 2026-04-25
+- Redesign staff/volunteer buttons: white background, black border, category color dots
+- Add category-to-color and email-to-category mappings for maketeers
+- Update legend to show all category dots
+
 ### v2.2 - 2026-04-12
 - Split guests into their own group below members on the check-in display
 - Note: Use "nobody@nobody.nbd" as a test Guest user on the dev site
