@@ -15,6 +15,8 @@ Changelog:
 - Store multiple categories pipe-delimited in database
 - Display multi-category ring using conic-gradient on check-in display buttons
 - Volunteers with multiple mapped categories show conic-gradient ring
+- Add stats dashboard with bar chart (check-ins per day) and pie chart (check-ins by space)
+- Dashboard supports time range selection (1-21 days) and group filtering
 
 ### v2.4 - 2026-04-26
 - Add category selection with icons when members check in
@@ -237,10 +239,11 @@ function check_in_success_volunteer_add_selected_check_in($content, $volunteer_e
     if ($check_in_as_volunteer) {
         $content = check_in_add_title($content);
 
-        // Store all mapped categories pipe-delimited, or 'None'
+        // Store all mapped categories pipe-delimited, or 'None'. Staff always get 'None'.
         $email_to_categories = $GLOBALS['EMAIL_TO_CATEGORIES'];
         $category = 'None';
-        if ($user->user_email && array_key_exists($user->user_email, $email_to_categories)) {
+        if ($membership_status != $GLOBALS['STAFF_MEMBERSHIP_STATUS']
+            && $user->user_email && array_key_exists($user->user_email, $email_to_categories)) {
             $category = implode('|', $email_to_categories[$user->user_email]);
         }
         check_in_db_add_check_in($user->ID, $membership_status, $category);
@@ -258,8 +261,7 @@ function check_in_success_volunteer_add_selected_check_in($content, $volunteer_e
 function check_in_success_member_select_category($content, $user, $membership_status)
 {
     $content = check_in_add_title($content);
-    $content = "{$content}Welcome, {$user->display_name}! What space will you be working in today?<br>";
-    $content .= '<div style="font-size:14px; margin-bottom:8px;">You can select up to 4!</div>';
+    $content = "{$content}Welcome, {$user->display_name}! What space will you be working in today? (You can select up to 4!)<br>";
 
     if ($membership_status == $GLOBALS['EXPIRED_MEMBERSHIP_STATUS'])
     {
@@ -459,6 +461,11 @@ function check_in_handle_search($content, $user_email)
 function check_in_stats($content)
 {
     $check_ins = check_in_db_get_check_ins_all();
+
+    $content = check_in_stats_dashboard($content, $check_ins);
+    $content .= '<hr><h3>Raw Data</h3>';
+    $content .= '<div style="font-weight:bold;">Note: Timestamps are in UTC.</div><br>';
+
     $printed_fields = false;
     foreach($check_ins as $check_in)
     {
@@ -482,6 +489,174 @@ function check_in_stats($content)
         $content = rtrim($content, ',');
         $content = "{$content}<br>\n";
     }
+
+    return $content;
+}
+
+function check_in_stats_dashboard($content, $check_ins)
+{
+    $check_ins_json = json_encode($check_ins);
+    $category_colors_json = json_encode($GLOBALS['CATEGORY_COLORS']);
+
+    $chart_js_url = plugin_dir_url(__FILE__) . 'chart.umd.min.js';
+    $content .= '<script src="' . $chart_js_url . '"></script>';
+
+    $content .= '<h3>Dashboard</h3>';
+
+    // Time range selector
+    $content .= '<div style="margin-bottom:10px;">';
+    $content .= '<label>Time range: <input type="range" min="1" max="21" value="7" id="dashboardDaysRange" oninput="updateDashboard()"> <span id="dashboardDaysLabel">7 days</span></label>';
+    $content .= '</div>';
+
+    // Radio buttons
+    $content .= '<div style="margin-bottom:10px;">';
+    $content .= '<label style="margin-right:15px;"><input type="radio" name="dashboardGroup" value="Members" checked onchange="updateDashboard()"> Members</label>';
+    $content .= '<label style="margin-right:15px;"><input type="radio" name="dashboardGroup" value="Volunteers" onchange="updateDashboard()"> Volunteers</label>';
+    $content .= '<label style="margin-right:15px;"><input type="radio" name="dashboardGroup" value="Staff" onchange="updateDashboard()"> Staff</label>';
+    $content .= '<label><input type="radio" name="dashboardGroup" value="Guests" onchange="updateDashboard()"> Guests</label>';
+    $content .= '</div>';
+
+    // Chart containers
+    $content .= '<div style="display:flex; gap:20px; margin-bottom:20px;">';
+    $content .= '<div style="flex:1; min-height:300px;"><canvas id="dailyChart"></canvas></div>';
+    $content .= '<div style="flex:1; min-height:300px;"><canvas id="categoryChart"></canvas></div>';
+    $content .= '</div>';
+
+    // JavaScript
+    $content .= '<script>
+        var allCheckIns = ' . $check_ins_json . ';
+        var categoryColors = ' . $category_colors_json . ';
+
+        var statusGroups = {
+            "Members": [1, 2, 5],
+            "Volunteers": [4],
+            "Staff": [6],
+            "Guests": [3]
+        };
+
+        var groupBarColors = {
+            "Members": "#13723C",
+            "Volunteers": "#2DBD45",
+            "Staff": "#FC6A03",
+            "Guests": "#AD7CFC"
+        };
+
+        var dailyChart = null;
+        var categoryChart = null;
+
+        function dateToPSTLabel(d) {
+            return d.toLocaleDateString("en-US", {
+                timeZone: "America/Los_Angeles",
+                month: "short",
+                day: "numeric"
+            });
+        }
+
+        function updateDashboard() {
+            var daysRange = document.getElementById("dashboardDaysRange");
+            var daysLabel = document.getElementById("dashboardDaysLabel");
+            var selectedDays = parseInt(daysRange.value);
+            daysLabel.textContent = selectedDays + (selectedDays === 1 ? " day" : " days");
+
+            var selectedGroup = document.querySelector("input[name=dashboardGroup]:checked").value;
+            var statuses = statusGroups[selectedGroup];
+
+            var cutoff = new Date();
+            cutoff.setDate(cutoff.getDate() - selectedDays);
+            cutoff.setHours(0, 0, 0, 0);
+
+            var filtered = allCheckIns.filter(function(ci) {
+                var d = new Date(ci.check_in_time.replace(" ", "T") + "Z");
+                return statuses.indexOf(Number(ci.membership_status)) !== -1 && d >= cutoff;
+            });
+
+            // Bar chart: checkins per day
+            var dayLabels = [];
+            var dayCounts = {};
+            for (var i = selectedDays - 1; i >= 0; i--) {
+                var d = new Date();
+                d.setDate(d.getDate() - i);
+                var label = dateToPSTLabel(d);
+                if (!(label in dayCounts)) {
+                    dayLabels.push(label);
+                    dayCounts[label] = 0;
+                }
+            }
+            filtered.forEach(function(ci) {
+                var d = new Date(ci.check_in_time.replace(" ", "T") + "Z");
+                var label = dateToPSTLabel(d);
+                if (label in dayCounts) {
+                    dayCounts[label]++;
+                }
+            });
+
+            // Pie chart: checkins per category (split pipe-delimited)
+            var catCounts = {};
+            filtered.forEach(function(ci) {
+                var cats = (ci.category || "None").split("|");
+                cats.forEach(function(cat) {
+                    cat = cat.trim();
+                    if (!catCounts[cat]) catCounts[cat] = 0;
+                    catCounts[cat]++;
+                });
+            });
+
+            // Render bar chart
+            if (dailyChart) dailyChart.destroy();
+            dailyChart = new Chart(document.getElementById("dailyChart"), {
+                type: "bar",
+                data: {
+                    labels: dayLabels,
+                    datasets: [{
+                        label: selectedGroup + " Check-ins",
+                        data: dayLabels.map(function(l) { return dayCounts[l]; }),
+                        backgroundColor: groupBarColors[selectedGroup]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        title: { display: true, text: selectedGroup + " Check-ins Per Day (PST)" }
+                    },
+                    scales: {
+                        x: { ticks: { maxRotation: 45 } },
+                        y: { beginAtZero: true, ticks: { stepSize: 1 } }
+                    }
+                }
+            });
+
+            // Render pie chart
+            if (categoryChart) categoryChart.destroy();
+            var catLabels = Object.keys(catCounts).sort();
+            var catData = catLabels.map(function(l) { return catCounts[l]; });
+            var catBgColors = catLabels.map(function(l) {
+                if (l === "None") return "rgba(0,0,0,0)";
+                return categoryColors[l] || "#CCCCCC";
+            });
+            categoryChart = new Chart(document.getElementById("categoryChart"), {
+                type: "pie",
+                data: {
+                    labels: catLabels,
+                    datasets: [{
+                        data: catData,
+                        backgroundColor: catBgColors
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: { display: true, text: selectedGroup + " Check-ins By Space" },
+                        legend: { position: "right" }
+                    }
+                }
+            });
+        }
+
+        updateDashboard();
+    </script>';
 
     return $content;
 }
