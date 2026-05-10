@@ -10,6 +10,12 @@
 
 /*
 Changelog:
+### v2.5 - 2026-05-10
+- Allow members to select up to 4 categories (multi-select with toggle buttons)
+- Store multiple categories pipe-delimited in database
+- Display multi-category ring using conic-gradient on check-in display buttons
+- Volunteers with multiple mapped categories show conic-gradient ring
+
 ### v2.4 - 2026-04-26
 - Add category selection with icons when members check in
 - Store selected category in database
@@ -50,7 +56,7 @@ $ITEM_STATUS_KEY = '_pp_item_status';
 $USER_METADATA_VOLUNTEER_STATUS_KEY = '007ccabca25c28e32048aaec5ecc18e0';
 $USER_METADATA_VOLUNTEER_ROLES_KEY = 'ppu_roles_1506378218';
 
-$SM_CHECK_IN_PLUGIN_DB_VERSION = 3;
+$SM_CHECK_IN_PLUGIN_DB_VERSION = 4;
 $SM_CHECK_IN_PLUGIN_DB_VERSION_OPTION_NAME = 'sm_check_in_plugin_db_version';
 
 function check_in_home($content)
@@ -231,11 +237,12 @@ function check_in_success_volunteer_add_selected_check_in($content, $volunteer_e
     if ($check_in_as_volunteer) {
         $content = check_in_add_title($content);
 
-        // Store the volunteer's first mapped category, or 'None'
+        // Store all mapped categories pipe-delimited, or 'None'
         $email_to_categories = $GLOBALS['EMAIL_TO_CATEGORIES'];
-        $category = ($user->user_email && array_key_exists($user->user_email, $email_to_categories))
-            ? $email_to_categories[$user->user_email][0]
-            : 'None';
+        $category = 'None';
+        if ($user->user_email && array_key_exists($user->user_email, $email_to_categories)) {
+            $category = implode('|', $email_to_categories[$user->user_email]);
+        }
         check_in_db_add_check_in($user->ID, $membership_status, $category);
 
         $content = "{$content}<br>Checking in {$user->display_name} as Staff/Maketeer!";
@@ -251,7 +258,8 @@ function check_in_success_volunteer_add_selected_check_in($content, $volunteer_e
 function check_in_success_member_select_category($content, $user, $membership_status)
 {
     $content = check_in_add_title($content);
-    $content = "{$content}<br>Welcome, {$user->display_name}! What space will you be working in today?<br><br>";
+    $content = "{$content}Welcome, {$user->display_name}! What space will you be working in today?<br>";
+    $content .= '<div style="font-size:14px; margin-bottom:8px;">You can select up to 4!</div>';
 
     if ($membership_status == $GLOBALS['EXPIRED_MEMBERSHIP_STATUS'])
     {
@@ -263,9 +271,67 @@ function check_in_success_member_select_category($content, $user, $membership_st
         $content = "{$content}<div style=\"color:red; font-weight:bold;\">Your membership is paused. Please see the front desk to resume it.</div><br>";
     }
 
+    $content .= '<script>
+        var selectedCategories = [];
+        var maxCategories = 4;
+
+        function hexToRgba(hex, alpha) {
+            var r = parseInt(hex.slice(1, 3), 16);
+            var g = parseInt(hex.slice(3, 5), 16);
+            var b = parseInt(hex.slice(5, 7), 16);
+            return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
+        }
+
+        function toggleCategory(button, categoryName, categoryColor) {
+            var index = selectedCategories.indexOf(categoryName);
+            if (index > -1) {
+                selectedCategories.splice(index, 1);
+                button.style.backgroundColor = "white";
+            } else {
+                if (selectedCategories.length >= maxCategories) {
+                    return;
+                }
+                selectedCategories.push(categoryName);
+                button.style.backgroundColor = hexToRgba(categoryColor, 0.25);
+            }
+            document.getElementById("check_in_member_category").value =
+                selectedCategories.length > 0 ? selectedCategories.join("|") : "None";
+            resetAutoSubmitTimer();
+        }
+
+        var autoSubmitTimer;
+        function resetAutoSubmitTimer() {
+            if (autoSubmitTimer) clearTimeout(autoSubmitTimer);
+            autoSubmitTimer = setTimeout(function() {
+                submitCategories();
+            }, 10000);
+            updateAutoSubmitMessage();
+        }
+
+        function updateAutoSubmitMessage() {
+            var msg = document.getElementById("auto_category_message");
+            if (msg) {
+                if (selectedCategories.length > 0) {
+                    msg.textContent = "Auto-submitting in 10s...";
+                } else {
+                    msg.textContent = "Auto-selecting None in 10s...";
+                }
+            }
+        }
+
+        function submitCategories() {
+            var input = document.getElementById("check_in_member_category");
+            if (selectedCategories.length === 0) {
+                input.value = "None";
+            }
+            document.getElementById("check_in_member_category_submit_btn").click();
+        }
+    </script>';
+
     $content .= '<form action="/check-in/" method="post">';
     $content .= '<input type="hidden" name="check_in_member_email" value="' . $user->user_email . '">';
     $content .= '<input type="hidden" name="check_in_member_membership_status" value="' . $membership_status . '">';
+    $content .= '<input type="hidden" id="check_in_member_category" name="check_in_member_category" value="None">';
 
     $icons_url = plugin_dir_url(__FILE__) . 'icons/';
     $category_icons = $GLOBALS['CATEGORY_ICONS'];
@@ -275,21 +341,18 @@ function check_in_success_member_select_category($content, $user, $membership_st
     foreach ($category_icons as $category_name => $icon_file) {
         $color = $category_colors[$category_name];
         $icon_url = $icons_url . $icon_file;
-        $content .= '<button type="submit" name="check_in_member_category" value="' . $category_name . '" style="display:flex; align-items:center; gap:8px; padding:10px; background-color:white; color:black; border:3px solid ' . $color . '; border-radius:8px; cursor:pointer; font-size:16px; font-weight:bold;">';
+        $content .= '<button type="button" onclick="toggleCategory(this, \'' . $category_name . '\', \'' . $color . '\')" style="display:flex; align-items:center; gap:8px; padding:10px; background-color:white; color:black; border:3px solid ' . $color . '; border-radius:8px; cursor:pointer; font-size:16px; font-weight:bold;">';
         $content .= '<img src="' . $icon_url . '" alt="" style="width:40px; height:40px;">';
         $content .= $category_name;
         $content .= '</button>';
     }
     $content .= '</div>';
 
-    $content .= '<input type="submit" name="check_in_member_category" value="None" style="display:none;" id="check_in_none_button">';
+    $content .= '<br><input type="submit" id="check_in_member_category_submit_btn" value="Submit" style="font-size:18px; padding:10px 30px; cursor:pointer;">';
     $content .= '</form>';
 
-    $content .= '<script> setTimeout(function() { 
-        var input = document.getElementById(\'check_in_none_button\');
-        if (input) input.click();
-    }, 10000); </script>';
     $content .= '<br><div id="auto_category_message">Auto-selecting None in 10s...</div>';
+    $content .= '<script> resetAutoSubmitTimer(); </script>';
 
     return $content;
 }
@@ -298,12 +361,18 @@ function check_in_success_member_category_selected($content, $member_email, $mem
 {
     $content = check_in_add_title($content);
 
-    // Whitelist category against known categories
-    // Note: This technically allows Staff/Volunteer as values, but there's no UI to select them.
+    // Parse and validate pipe-delimited categories (max 4)
     $valid_categories = array_keys($GLOBALS['CATEGORY_COLORS']);
-    if (!in_array($category, $valid_categories)) {
-        $category = 'None';
+    $submitted = explode('|', $category);
+    $validated = array();
+    foreach ($submitted as $cat) {
+        $cat = trim($cat);
+        if (in_array($cat, $valid_categories) && $cat !== 'None' && !in_array($cat, $validated)) {
+            $validated[] = $cat;
+        }
     }
+    $validated = array_slice($validated, 0, 4);
+    $category = empty($validated) ? 'None' : implode('|', $validated);
 
     // Re-lookup user by email (same pattern as volunteer flow — needed because this is a new HTTP request)
     $users = check_in_db_find_users_by_email($member_email);
@@ -624,6 +693,39 @@ function check_in_get_category_colors_for_user($user_email, $is_staff)
     return $colors;
 }
 
+// Returns a CSS background value for the category ring.
+// Single category: returns a solid hex color.
+// Multiple categories (pipe-delimited): returns a conic-gradient.
+function check_in_get_ring_background($category_string) {
+    $categories = explode('|', $category_string);
+    $colors = array();
+    foreach ($categories as $cat) {
+        $cat = trim($cat);
+        if (array_key_exists($cat, $GLOBALS['CATEGORY_COLORS']) && $cat !== 'None') {
+            $color = $GLOBALS['CATEGORY_COLORS'][$cat];
+            if (!in_array($color, $colors)) {
+                $colors[] = $color;
+            }
+        }
+    }
+
+    if (empty($colors)) {
+        return $GLOBALS['CATEGORY_COLORS']['None'];
+    }
+    if (count($colors) == 1) {
+        return $colors[0];
+    }
+
+    $angle_per = 360 / count($colors);
+    $stops = array();
+    for ($i = 0; $i < count($colors); $i++) {
+        $start = round($i * $angle_per);
+        $end = round(($i + 1) * $angle_per);
+        $stops[] = $colors[$i] . ' ' . $start . 'deg ' . $end . 'deg';
+    }
+    return 'conic-gradient(' . implode(', ', $stops) . ')';
+}
+
 // New function to handle three groups: staff/volunteers, members, guests
 function check_in_add_check_ins_table_group($content, $check_ins, $group)
 {
@@ -655,28 +757,29 @@ function check_in_add_check_ins_table_group($content, $check_ins, $group)
 
         // Had to set the button style instead of using CSS class because it was being overridden by Wordpress theme
         if ($is_staff || $is_volunteer) {
-            $bg_color = check_in_get_color_for_membership_status($GLOBALS['VOLUNTEER_MEMBERSHIP_STATUS']);
             if ($is_staff) {
-                $category_color = $GLOBALS['CATEGORY_COLORS']['Staff'];
+                $ring_bg = $GLOBALS['CATEGORY_COLORS']['Staff'];
             } else {
-                $category_colors = check_in_get_category_colors_for_user($check_in->user_email, false);
-                $category_color = !empty($category_colors) ? $category_colors[0] : $GLOBALS['CATEGORY_COLORS']['None'];
+                $category = isset($check_in->category) ? $check_in->category : 'None';
+                $ring_bg = check_in_get_ring_background($category);
             }
-            $check_in_button_style = 'background-color:white; color:black; border:1px solid black; box-shadow:0 0 0 4px ' . $category_color . '; outline:1px solid black; outline-offset:4px';
-            $content .= "<td class=\"check-ins-table\" align=\"left\"><button style=\"{$check_in_button_style}\" type=\"submit\" id=\"check_out_{$check_in->user_id}\" name=\"check_out_{$check_in->user_id}\" value=\"{$check_in->display_name}\">{$check_in->display_name}</button></td>";
+            $wrapper_style = 'display:inline-block; background:' . $ring_bg . '; padding:1px 4px; border-radius:999px; outline:1px solid black;';
+            $button_style = 'background-color:white; color:black; border:1px solid black; border-radius:999px;';
+            $content .= "<td class=\"check-ins-table\" align=\"left\"><div style=\"{$wrapper_style}\"><button style=\"{$button_style}\" type=\"submit\" id=\"check_out_{$check_in->user_id}\" name=\"check_out_{$check_in->user_id}\" value=\"{$check_in->display_name}\">{$check_in->display_name}</button></div></td>";
         } else {
             // Guests use membership status color for ring; members use stored category
             if ($is_guest) {
-                $ring_color = check_in_get_color_for_membership_status($check_in->membership_status);
+                $ring_bg = check_in_get_color_for_membership_status($check_in->membership_status);
             } else {
                 $category = isset($check_in->category) ? $check_in->category : 'None';
-                $ring_color = array_key_exists($category, $GLOBALS['CATEGORY_COLORS']) ? $GLOBALS['CATEGORY_COLORS'][$category] : $GLOBALS['CATEGORY_COLORS']['None'];
+                $ring_bg = check_in_get_ring_background($category);
             }
             $is_expired = ($check_in->membership_status == $GLOBALS['EXPIRED_MEMBERSHIP_STATUS'] || $check_in->membership_status == $GLOBALS['PAUSED_MEMBERSHIP_STATUS']);
             $bg_color = $is_expired ? check_in_get_color_for_membership_status($check_in->membership_status) : 'white';
             $text_color = $is_expired ? 'white' : 'black';
-            $check_in_button_style = 'background-color:' . $bg_color . '; color:' . $text_color . '; border:1px solid black; box-shadow:0 0 0 4px ' . $ring_color . '; outline:1px solid black; outline-offset:4px';
-            $content .= "<td class=\"check-ins-table\" align=\"left\"><input style=\"{$check_in_button_style}\" type=\"submit\" id=\"check_out_{$check_in->user_id}\" name=\"check_out_{$check_in->user_id}\" value=\"{$check_in->display_name}\"></td>";
+            $wrapper_style = 'display:inline-block; background:' . $ring_bg . '; padding:1px 4px; border-radius:999px; outline:1px solid black;';
+            $button_style = 'background-color:' . $bg_color . '; color:' . $text_color . '; border:1px solid black; border-radius:999px;';
+            $content .= "<td class=\"check-ins-table\" align=\"left\"><div style=\"{$wrapper_style}\"><input style=\"{$button_style}\" type=\"submit\" id=\"check_out_{$check_in->user_id}\" name=\"check_out_{$check_in->user_id}\" value=\"{$check_in->display_name}\"></div></td>";
         }
 
         // Show two buttons per line
@@ -704,7 +807,7 @@ function check_in_db_create_or_update_table()
         check_in_time datetime NOT NULL,
         check_out_time datetime,
         membership_status tinyint unsigned NOT NULL,
-        category varchar(50),
+        category varchar(255),
         PRIMARY KEY  (id)) {$charset_collate};";
 
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
