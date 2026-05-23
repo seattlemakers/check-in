@@ -3,13 +3,19 @@
     Plugin Name: Seattle Makers Check-In Plugin
     Plugin URI: https://github.com/seattlemakers/check-in/
     Description: To display at front desk to allow people to check into the space
-    Version: 2.4
+    Version: 2.6
     Author: Adi
     Author URI: https://github.com/adkeswani/
      */
 
 /*
 Changelog:
+### v2.6 - 2026-05-23
+- Reorganize stats page into tabbed layout (Charts, Raw Data, Member Lookup)
+- Add limit/offset controls on Raw Data tab for paginating check-in records
+- Add Member Lookup tab to search check-ins by email address or member ID
+- Charts tab auto-switches when returning from form submissions
+
 ### v2.5 - 2026-05-10
 - Allow members to select up to 4 categories (multi-select with toggle buttons)
 - Store multiple categories pipe-delimited in database
@@ -462,9 +468,63 @@ function check_in_stats($content)
 {
     $check_ins = check_in_db_get_check_ins_all();
 
+    // Tab styles
+    $content .= '<style>
+        .stats-tabs { display: flex; gap: 0; border-bottom: 2px solid #ccc; margin-bottom: 15px; }
+        .stats-tab { padding: 10px 24px; cursor: pointer; border: 2px solid transparent; border-bottom: none;
+                     border-radius: 6px 6px 0 0; background: #f0f0f0; font-weight: bold; margin-bottom: -2px; }
+        .stats-tab.active { background: #fff; border-color: #ccc; border-bottom-color: #fff; }
+        .stats-tab-content { display: none; }
+        .stats-tab-content.active { display: block; }
+    </style>';
+
+    // Tab bar
+    $content .= '<div class="stats-tabs">';
+    $content .= '<div class="stats-tab active" onclick="switchStatsTab(\'charts\')">Charts</div>';
+    $content .= '<div class="stats-tab" onclick="switchStatsTab(\'rawdata\')">Raw Data</div>';
+    $content .= '<div class="stats-tab" onclick="switchStatsTab(\'member\')">Member Lookup</div>';
+    $content .= '</div>';
+
+    // Tab switching script
+    $content .= '<script>
+        function switchStatsTab(tabId) {
+            document.querySelectorAll(".stats-tab").forEach(function(t) { t.classList.remove("active"); });
+            document.querySelectorAll(".stats-tab-content").forEach(function(c) { c.classList.remove("active"); });
+            document.getElementById("stats-tab-" + tabId).classList.add("active");
+            document.querySelector(".stats-tab[onclick*=\'" + tabId + "\']").classList.add("active");
+        }
+    </script>';
+
+    // Charts tab
+    $content .= '<div id="stats-tab-charts" class="stats-tab-content active">';
     $content = check_in_stats_dashboard($content, $check_ins);
-    $content .= '<hr><h3>Raw Data</h3>';
-    $content .= '<div style="font-weight:bold;">Note: Timestamps are in UTC.</div><br>';
+    $content .= '</div>';
+
+    // Auto-switch to correct tab if requested via query param
+    $content .= '<script>
+        document.addEventListener("DOMContentLoaded", function() {
+            var params = new URLSearchParams(window.location.search);
+            var tab = params.get("tab");
+            if (tab && document.getElementById("stats-tab-" + tab)) { switchStatsTab(tab); }
+        });
+    </script>';
+
+    // Raw Data tab
+    $current_limit = isset($_GET['limit']) ? intval($_GET['limit']) : 1000;
+    if ($current_limit <= 0) $current_limit = 1000;
+    $current_offset = isset($_GET['offset']) ? intval($_GET['offset']) : 0;
+    if ($current_offset < 0) $current_offset = 0;
+
+    $content .= '<div id="stats-tab-rawdata" class="stats-tab-content">';
+    $content .= '<div style="font-weight:bold;">Note: Timestamps are in UTC. Changing the limit and offset below will also affect the data shown in the Charts tab.</div><br>';
+
+    // Range controls
+    $content .= '<form id="rawDataRangeForm" method="get" style="margin-bottom:15px; display:flex; gap:15px; align-items:center;">';
+    $content .= '<label>Limit: <input type="number" name="limit" value="' . $current_limit . '" min="1" style="width:80px;"></label>';
+    $content .= '<label>Offset: <input type="number" name="offset" value="' . $current_offset . '" min="0" style="width:80px;"></label>';
+    $content .= '<input type="hidden" name="tab" value="rawdata">';
+    $content .= '<button type="submit">Update</button>';
+    $content .= '</form>';
 
     $printed_fields = false;
     foreach($check_ins as $check_in)
@@ -490,6 +550,92 @@ function check_in_stats($content)
         $content = "{$content}<br>\n";
     }
 
+    $content .= '</div>';
+
+    // Member Lookup tab
+    $content .= '<div id="stats-tab-member" class="stats-tab-content">';
+
+    $content .= '<form method="get" style="margin-bottom:15px; display:flex; gap:15px; align-items:center;">';
+    $content .= '<label>Email or Member ID: <input type="text" name="member_search" value="' . esc_attr(isset($_GET['member_search']) ? $_GET['member_search'] : '') . '" style="width:250px;"></label>';
+    $content .= '<input type="hidden" name="tab" value="member">';
+    $content .= '<button type="submit">Search</button>';
+    $content .= '</form>';
+
+    if (isset($_GET['member_search']) && trim($_GET['member_search']) !== '')
+    {
+        $search_value = trim($_GET['member_search']);
+
+        // Detect email vs member ID
+        if (strpos($search_value, '@') !== false)
+        {
+            $users = check_in_db_find_users_by_email($search_value);
+            if (count($users) === 0)
+            {
+                $content .= '<div style="color:red;">No user found with email "' . esc_html($search_value) . '".</div>';
+            }
+            else if (count($users) > 1)
+            {
+                $content .= '<div style="color:red;">Multiple users found with email "' . esc_html($search_value) . '". Please use a Member ID instead.</div>';
+            }
+            else
+            {
+                $lookup_user_id = $users[0]->ID;
+                $content .= '<div style="margin-bottom:10px;">Showing check-ins for <strong>' . esc_html($users[0]->display_name) . '</strong> (' . esc_html($users[0]->user_email) . '), Member ID: ' . esc_html($lookup_user_id) . '</div>';
+            }
+        }
+        else
+        {
+            $lookup_user_id = intval($search_value);
+            if ($lookup_user_id <= 0)
+            {
+                $content .= '<div style="color:red;">Invalid Member ID.</div>';
+            }
+            else
+            {
+                $content .= '<div style="margin-bottom:10px;">Showing check-ins for Member ID: ' . esc_html($lookup_user_id) . '</div>';
+            }
+        }
+
+        if (isset($lookup_user_id) && $lookup_user_id > 0)
+        {
+            $member_check_ins = check_in_db_get_check_ins_by_user_id($lookup_user_id);
+
+            if (count($member_check_ins) === 0)
+            {
+                $content .= '<div>No check-ins found.</div>';
+            }
+            else
+            {
+                $content .= '<div style="margin-bottom:5px;">' . count($member_check_ins) . ' check-in(s) found.</div>';
+                $content .= '<div style="font-weight:bold;">Note: Timestamps are in UTC.</div><br>';
+
+                $printed_fields = false;
+                foreach($member_check_ins as $check_in)
+                {
+                    if (!$printed_fields)
+                    {
+                        foreach($check_in as $field => $value)
+                        {
+                            $content = "{$content}{$field},";
+                        }
+                        $content = rtrim($content, ',');
+                        $content = "{$content}<br>\n";
+                        $printed_fields = true;
+                    }
+
+                    foreach($check_in as $field => $value)
+                    {
+                        $content = "{$content}{$value},";
+                    }
+                    $content = rtrim($content, ',');
+                    $content = "{$content}<br>\n";
+                }
+            }
+        }
+    }
+
+    $content .= '</div>';
+
     return $content;
 }
 
@@ -500,8 +646,6 @@ function check_in_stats_dashboard($content, $check_ins)
 
     $chart_js_url = plugin_dir_url(__FILE__) . 'chart.umd.min.js';
     $content .= '<script src="' . $chart_js_url . '"></script>';
-
-    $content .= '<h3>Dashboard</h3>';
 
     // Time range selector
     $content .= '<div style="margin-bottom:10px;">';
@@ -1018,6 +1162,18 @@ function check_in_db_add_check_in($user_id, $membership_status, $category = 'Non
         'membership_status' => $membership_status,
         'category' => $category,
     ));
+}
+
+function check_in_db_get_check_ins_by_user_id($user_id)
+{
+    global $wpdb;
+    $sql = $wpdb->prepare("
+        SELECT *
+        FROM {$wpdb->base_prefix}sm_check_ins
+        WHERE user_id = %d
+        ORDER BY {$wpdb->base_prefix}sm_check_ins.id DESC;", $user_id);
+    $results = $wpdb->get_results($sql);
+    return $results;
 }
 
 function check_in_db_get_check_ins_all()
