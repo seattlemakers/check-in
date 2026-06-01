@@ -3,13 +3,18 @@
     Plugin Name: Seattle Makers Check-In Plugin
     Plugin URI: https://github.com/seattlemakers/check-in/
     Description: To display at front desk to allow people to check into the space
-    Version: 2.6
+    Version: 2.7
     Author: Adi
     Author URI: https://github.com/adkeswani/
      */
 
 /*
 Changelog:
+### v2.7 - 2026-05-31
+- Volunteers with multiple mapped categories can now pick which area(s) to check in under
+- Normalize email addresses (trim whitespace, lowercase) for category lookups
+- Add Printmaking category; migrate Screen Printing to Printmaking (schema v5)
+
 ### v2.6 - 2026-05-23
 - Reorganize stats page into tabbed layout (Charts, Raw Data, Member Lookup)
 - Add limit/offset controls on Raw Data tab for paginating check-in records
@@ -64,7 +69,7 @@ $ITEM_STATUS_KEY = '_pp_item_status';
 $USER_METADATA_VOLUNTEER_STATUS_KEY = '007ccabca25c28e32048aaec5ecc18e0';
 $USER_METADATA_VOLUNTEER_ROLES_KEY = 'ppu_roles_1506378218';
 
-$SM_CHECK_IN_PLUGIN_DB_VERSION = 4;
+$SM_CHECK_IN_PLUGIN_DB_VERSION = 5;
 $SM_CHECK_IN_PLUGIN_DB_VERSION_OPTION_NAME = 'sm_check_in_plugin_db_version';
 
 function check_in_home($content)
@@ -243,15 +248,23 @@ function check_in_success_volunteer_add_selected_check_in($content, $volunteer_e
 
     $user = $users[0];
     if ($check_in_as_volunteer) {
-        $content = check_in_add_title($content);
-
-        // Store all mapped categories pipe-delimited, or 'None'. Staff always get 'None'.
+        // Look up mapped categories for this volunteer
         $email_to_categories = $GLOBALS['EMAIL_TO_CATEGORIES'];
-        $category = 'None';
+        $normalized_email = strtolower(trim($user->user_email));
+        $mapped_categories = array();
         if ($membership_status != $GLOBALS['STAFF_MEMBERSHIP_STATUS']
-            && $user->user_email && array_key_exists($user->user_email, $email_to_categories)) {
-            $category = implode('|', $email_to_categories[$user->user_email]);
+            && $normalized_email && array_key_exists($normalized_email, $email_to_categories)) {
+            $mapped_categories = $email_to_categories[$normalized_email];
         }
+
+        // If volunteer has multiple categories, let them pick
+        if (count($mapped_categories) > 1) {
+            return check_in_success_member_select_category($content, $user, $membership_status, $mapped_categories);
+        }
+
+        // 0 or 1 categories — save immediately
+        $content = check_in_add_title($content);
+        $category = empty($mapped_categories) ? 'None' : $mapped_categories[0];
         check_in_db_add_check_in($user->ID, $membership_status, $category);
 
         $content = "{$content}<br>Checking in {$user->display_name} as Staff/Maketeer!";
@@ -264,10 +277,17 @@ function check_in_success_volunteer_add_selected_check_in($content, $volunteer_e
     }
 }
 
-function check_in_success_member_select_category($content, $user, $membership_status)
+// $volunteer_categories: when set, only these categories are shown and they start selected (for volunteer flow)
+function check_in_success_member_select_category($content, $user, $membership_status, $volunteer_categories = null)
 {
     $content = check_in_add_title($content);
-    $content = "{$content}Welcome, {$user->display_name}! What space will you be working in today? (You can select up to 4!)<br>";
+
+    $is_volunteer_flow = !empty($volunteer_categories);
+    if ($is_volunteer_flow) {
+        $content = "{$content}Welcome, {$user->display_name}! Which area are you covering today?<br>";
+    } else {
+        $content = "{$content}Welcome, {$user->display_name}! What space will you be working in today? (You can select up to 4!)<br>";
+    }
 
     if ($membership_status == $GLOBALS['EXPIRED_MEMBERSHIP_STATUS'])
     {
@@ -279,9 +299,13 @@ function check_in_success_member_select_category($content, $user, $membership_st
         $content = "{$content}<div style=\"color:red; font-weight:bold;\">Your membership is paused. Please see the front desk to resume it.</div><br>";
     }
 
+    $default_value = $is_volunteer_flow ? implode('|', $volunteer_categories) : 'None';
+    $max_categories = $is_volunteer_flow ? count($volunteer_categories) : 4;
+    $empty_label = $is_volunteer_flow ? 'Auto-submitting all areas in 10s...' : 'Auto-selecting None in 10s...';
+
     $content .= '<script>
-        var selectedCategories = [];
-        var maxCategories = 4;
+        var selectedCategories = ' . ($is_volunteer_flow ? wp_json_encode(array_values($volunteer_categories)) : '[]') . ';
+        var maxCategories = ' . $max_categories . ';
 
         function hexToRgba(hex, alpha) {
             var r = parseInt(hex.slice(1, 3), 16);
@@ -322,7 +346,7 @@ function check_in_success_member_select_category($content, $user, $membership_st
                 if (selectedCategories.length > 0) {
                     msg.textContent = "Auto-submitting in 10s...";
                 } else {
-                    msg.textContent = "Auto-selecting None in 10s...";
+                    msg.textContent = ' . wp_json_encode($empty_label) . ';
                 }
             }
         }
@@ -330,7 +354,7 @@ function check_in_success_member_select_category($content, $user, $membership_st
         function submitCategories() {
             var input = document.getElementById("check_in_member_category");
             if (selectedCategories.length === 0) {
-                input.value = "None";
+                input.value = ' . wp_json_encode($default_value) . ';
             }
             document.getElementById("check_in_member_category_submit_btn").click();
         }
@@ -339,19 +363,28 @@ function check_in_success_member_select_category($content, $user, $membership_st
     $content .= '<form action="/check-in/" method="post">';
     $content .= '<input type="hidden" name="check_in_member_email" value="' . $user->user_email . '">';
     $content .= '<input type="hidden" name="check_in_member_membership_status" value="' . $membership_status . '">';
-    $content .= '<input type="hidden" id="check_in_member_category" name="check_in_member_category" value="None">';
+    $content .= '<input type="hidden" id="check_in_member_category" name="check_in_member_category" value="' . esc_attr($default_value) . '">';
 
     $icons_url = plugin_dir_url(__FILE__) . 'icons/';
     $category_icons = $GLOBALS['CATEGORY_ICONS'];
     $category_colors = $GLOBALS['CATEGORY_COLORS'];
 
+    $categories_to_show = $is_volunteer_flow ? $volunteer_categories : array_keys($category_icons);
+
     $content .= '<div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; max-width:700px;">';
-    foreach ($category_icons as $category_name => $icon_file) {
+    foreach ($categories_to_show as $category_name) {
+        if (!array_key_exists($category_name, $category_colors)) continue;
         $color = $category_colors[$category_name];
+        $icon_file = isset($category_icons[$category_name]) ? $category_icons[$category_name] : '';
         $icon_url = $icons_url . $icon_file;
-        $content .= '<button type="button" onclick="toggleCategory(this, \'' . $category_name . '\', \'' . $color . '\')" style="display:flex; align-items:center; gap:8px; padding:10px; background-color:white; color:black; border:3px solid ' . $color . '; border-radius:8px; cursor:pointer; font-size:16px; font-weight:bold;">';
-        $content .= '<img src="' . $icon_url . '" alt="" style="width:40px; height:40px;">';
-        $content .= $category_name;
+        $bg_color = $is_volunteer_flow
+            ? 'rgba(' . hexdec(substr($color, 1, 2)) . ',' . hexdec(substr($color, 3, 2)) . ',' . hexdec(substr($color, 5, 2)) . ',0.25)'
+            : 'white';
+        $content .= '<button type="button" onclick="toggleCategory(this, \'' . esc_attr($category_name) . '\', \'' . esc_attr($color) . '\')" style="display:flex; align-items:center; gap:8px; padding:10px; background-color:' . $bg_color . '; color:black; border:3px solid ' . $color . '; border-radius:8px; cursor:pointer; font-size:16px; font-weight:bold;">';
+        if ($icon_file) {
+            $content .= '<img src="' . esc_attr($icon_url) . '" alt="" style="width:40px; height:40px;">';
+        }
+        $content .= esc_html($category_name);
         $content .= '</button>';
     }
     $content .= '</div>';
@@ -359,7 +392,7 @@ function check_in_success_member_select_category($content, $user, $membership_st
     $content .= '<br><input type="submit" id="check_in_member_category_submit_btn" value="Submit" style="font-size:18px; padding:10px 30px; cursor:pointer;">';
     $content .= '</form>';
 
-    $content .= '<br><div id="auto_category_message">Auto-selecting None in 10s...</div>';
+    $content .= '<br><div id="auto_category_message">' . esc_html($is_volunteer_flow ? 'Auto-submitting in 10s...' : 'Auto-selecting None in 10s...') . '</div>';
     $content .= '<script> resetAutoSubmitTimer(); </script>';
 
     return $content;
@@ -954,7 +987,7 @@ $CATEGORY_COLORS = array(
     'Lapidary'       => '#800020',
     'Laser Cutting'  => '#E60012',
     'Metalworking'   => '#B8B8B8',
-    'Screen Printing'=> '#C0DDE8',
+    'Printmaking'    => '#C0DDE8',
     'Sewing'         => '#800080',
     'Woodshop'       => '#FFC830',
     'Staff'          => '#000000',
@@ -972,7 +1005,7 @@ $CATEGORY_ICONS = array(
     'Lapidary'       => 'lapidary.png',
     'Laser Cutting'  => 'laser_cutting.png',
     'Metalworking'   => 'metalworking.png',
-    'Screen Printing'=> 'screen_printing.png',
+    'Printmaking'    => 'printmaking.png',
     'Sewing'         => 'sewing.png',
     'Woodshop'       => 'woodshop.png',
 );
@@ -996,8 +1029,9 @@ function check_in_get_category_colors_for_user($user_email, $is_staff)
     }
 
     // Add any category dots from the email mapping
-    if ($user_email && array_key_exists($user_email, $email_to_categories)) {
-        foreach ($email_to_categories[$user_email] as $category) {
+    $normalized_email = strtolower(trim($user_email));
+    if ($normalized_email && array_key_exists($normalized_email, $email_to_categories)) {
+        foreach ($email_to_categories[$normalized_email] as $category) {
             if (array_key_exists($category, $category_colors)) {
                 $colors[] = $category_colors[$category];
             }
@@ -1132,6 +1166,22 @@ function check_in_db_create_or_update_table()
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
     dbDelta($sql);
     return $wpdb->last_error;
+}
+
+function check_in_db_run_migrations($from_version)
+{
+    global $wpdb;
+    $table = "{$wpdb->base_prefix}sm_check_ins";
+
+    // v5: Rename "Screen Printing" category to "Printmaking"
+    if ($from_version < 5) {
+        $wpdb->query($wpdb->prepare(
+            "UPDATE {$table} SET category = REPLACE(category, %s, %s) WHERE category LIKE %s",
+            'Screen Printing',
+            'Printmaking',
+            '%Screen Printing%'
+        ));
+    }
 }
 
 function check_in_db_drop_table()
@@ -1323,6 +1373,7 @@ function check_in_filter($content)
     if ($db_version != $GLOBALS['SM_CHECK_IN_PLUGIN_DB_VERSION'])
     {
         check_in_db_create_or_update_table();
+        check_in_db_run_migrations(intval($db_version));
         update_option($GLOBALS['SM_CHECK_IN_PLUGIN_DB_VERSION_OPTION_NAME'], $GLOBALS['SM_CHECK_IN_PLUGIN_DB_VERSION']);
     }
 
@@ -1379,7 +1430,7 @@ function check_in_filter($content)
 
     if (array_key_exists('check_in_searched_email', $_POST))
     {
-        return check_in_handle_search($content, $_POST['check_in_searched_email']);
+        return check_in_handle_search($content, trim($_POST['check_in_searched_email']));
     }
 
     return check_in_home($content);
