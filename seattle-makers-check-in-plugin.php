@@ -69,7 +69,7 @@ $ITEM_STATUS_KEY = '_pp_item_status';
 $USER_METADATA_VOLUNTEER_STATUS_KEY = '007ccabca25c28e32048aaec5ecc18e0';
 $USER_METADATA_VOLUNTEER_ROLES_KEY = 'ppu_roles_1506378218';
 
-$SM_CHECK_IN_PLUGIN_DB_VERSION = 5;
+$SM_CHECK_IN_PLUGIN_DB_VERSION = 6;
 $SM_CHECK_IN_PLUGIN_DB_VERSION_OPTION_NAME = 'sm_check_in_plugin_db_version';
 
 function check_in_home($content)
@@ -1180,6 +1180,16 @@ function check_in_db_run_migrations($from_version)
             'Screen Printing',
             'Printmaking',
             '%Screen Printing%'
+        ));
+    }
+
+    // v6: Rename "CNC Routing" category to "Wood CNC"
+    if ($from_version < 6) {
+        $wpdb->query($wpdb->prepare(
+            "UPDATE {$table} SET category = REPLACE(category, %s, %s) WHERE category LIKE %s",
+            'CNC Routing',
+            'Wood CNC',
+            '%CNC Routing%'
         ));
     }
 }
